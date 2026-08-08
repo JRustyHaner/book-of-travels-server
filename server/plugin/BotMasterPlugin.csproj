@@ -1,0 +1,109 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>10</LangVersion>
+    <AssemblyName>BotMasterPlugin</AssemblyName>
+    <RootNamespace>BotMasterPlugin</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- BepInEx 6 runtime (unzip this into the game folder): tools/bot-server/bepinex/ -->
+    <Reference Include="BepInEx.Core">
+      <HintPath>../../runtime/bepinex/BepInEx/core/BepInEx.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>../../runtime/bepinex/BepInEx/core/0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="BepInEx.Unity.Common">
+      <HintPath>../../runtime/bepinex/BepInEx/core/BepInEx.Unity.Common.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="BepInEx.Unity.Mono">
+      <HintPath>../../runtime/bepinex/BepInEx/core/BepInEx.Unity.Mono.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(BOT_GAME_DIR)/BookOfTravels_Data/Managed/Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Years.General.General.Assembly">
+      <HintPath>$(BOT_GAME_DIR)/BookOfTravels_Data/Managed/Years.General.General.Assembly.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Years.General.Base.Assembly">
+      <HintPath>$(BOT_GAME_DIR)/BookOfTravels_Data/Managed/Years.General.Base.Assembly.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Google.Protobuf">
+      <HintPath>$(BOT_GAME_DIR)/BookOfTravels_Data/Managed/Google.Protobuf.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Years.NetworkAddons.Assembly">
+      <HintPath>$(BOT_GAME_DIR)/BookOfTravels_Data/Managed/Years.NetworkAddons.Assembly.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Grpc.Core.Api">
+      <HintPath>$(BOT_GAME_DIR)/BookOfTravels_Data/Managed/Grpc.Core.Api.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Grpc.Core">
+      <HintPath>$(BOT_GAME_DIR)/BookOfTravels_Data/Managed/Grpc.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Mirror">
+      <HintPath>$(BOT_GAME_DIR)/BookOfTravels_Data/Managed/Mirror.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Telepathy">
+      <HintPath>$(BOT_GAME_DIR)/BookOfTravels_Data/Managed/Telepathy.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="kcp2k">
+      <HintPath>$(BOT_GAME_DIR)/BookOfTravels_Data/Managed/kcp2k.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Mirror.Components">
+      <HintPath>$(BOT_GAME_DIR)/BookOfTravels_Data/Managed/Mirror.Components.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="MySql.Data">
+      <HintPath>$(BOT_GAME_DIR)/BookOfTravels_Data/Managed/MySql.Data.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Microsoft.IdentityModel.Tokens">
+      <HintPath>$(BOT_GAME_DIR)/BookOfTravels_Data/Managed/Microsoft.IdentityModel.Tokens.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Microsoft.IdentityModel.JsonWebTokens">
+      <HintPath>$(BOT_GAME_DIR)/BookOfTravels_Data/Managed/Microsoft.IdentityModel.JsonWebTokens.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- UnityEngine facades -->
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(BOT_GAME_DIR)/BookOfTravels_Data/Managed/UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(BOT_GAME_DIR)/BookOfTravels_Data/Managed/UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$(BOT_GAME_DIR)/BookOfTravels_Data/Managed/Unity.TextMeshPro.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(BOT_GAME_DIR)/BookOfTravels_Data/Managed/UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

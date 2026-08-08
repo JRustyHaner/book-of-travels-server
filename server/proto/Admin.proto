@@ -1,0 +1,152 @@
+syntax = "proto3";
+
+package MasterService;
+
+import "Master.proto";
+
+enum ServerState {
+  UNSPECIFIED = 0;
+  STARTING = 1;
+  RUNNING = 2;
+  SHUTTING_DOWN = 3;
+  TERMINATED = 4;
+  STOPPED = 5;
+  STOPPING = 6;
+  NO_INSTANCE = 7;
+  PENDING = 8;
+}
+
+message ServerDescription {
+   int64 server_id = 6;
+   string public_ip = 1;
+   string private_ip = 5;
+   int32 total_players = 3;
+  repeated RoomDescription rooms = 4;
+   bool is_active = 7;
+   ServerState state = 8;
+   string instance_id = 9;
+   string name = 11;
+   string current_version = 12;
+   string target_version = 13;
+   int32 tags = 10;
+}
+
+message ScalingDescription {
+   int32 min_rooms_on_server = 1;
+   int32 max_rooms_on_server = 2;
+   int32 min_servers = 3;
+   int32 max_servers = 4;
+   int32 min_empty_rooms_on_server = 5;
+   int32 max_empty_rooms_on_server = 6;
+   int32 num_free_player_spots_to_remove_empty_server = 7;
+   int32 num_free_player_spots_to_create_new_server = 8;
+   int32 new_room_max_players = 9;
+   bool enabled = 10;
+}
+
+message CreateRoomDescription {
+   int32 max_players = 1;
+   string room_name = 2;
+   int64 room_id = 3;
+   int32 tags = 4;
+}
+
+message Version {
+   string name = 1;
+   string tag = 2;
+}
+
+message ListServersRequest {
+   string region = 1;
+}
+
+message ServerReply {
+  repeated ServerDescription servers = 1;
+}
+
+message Empty {
+}
+
+message UpdateMasterRequest {
+   int64 server_id = 2;
+   string name = 3;
+  repeated CreateRoomDescription rooms = 1;
+}
+
+message CreateMasterRequest {
+   string name = 4;
+   string instance_id = 5;
+   int32 tags = 3;
+   bool launch = 2;
+   string region = 6;
+  repeated CreateRoomDescription rooms = 1;
+}
+
+message StopMasterRequest {
+   int64 server_id = 1;
+}
+
+message StartMasterRequest {
+   int64 server_id = 1;
+}
+
+message UpdateAutoScalingRequest {
+   ScalingDescription settings = 1;
+}
+
+message GetAutoScalingReply {
+   ScalingDescription settings = 1;
+}
+
+message GetVersionsReply {
+  repeated Version versions = 1;
+}
+
+message ApplyBuildAllRequest {
+   string region = 1;
+   Version version = 2;
+}
+
+message ApplyBuildSelectedRequest {
+   string region = 3;
+  repeated int64 ids = 1;
+   Version version = 2;
+}
+
+message Region {
+   string name = 1;
+   string display_name = 2;
+   string db_url = 3;
+   string meta = 4;
+   string code = 5;
+}
+
+message RegionList {
+  repeated Region regions = 1;
+}
+
+service Admin {
+  rpc GetAllServers(ListServersRequest) returns (ServerReply);
+  rpc CreateMasterClient(CreateMasterRequest) returns (ErrorReply);
+  rpc RemoveMasterClient(StopMasterRequest) returns (ErrorReply);
+  rpc UpdateMasterClient(UpdateMasterRequest) returns (ErrorReply);
+  rpc StartMasterClient(StartMasterRequest) returns (ErrorReply);
+  rpc StopMasterClient(StopMasterRequest) returns (ErrorReply);
+  rpc UpdateAutoScaling(UpdateAutoScalingRequest) returns (ErrorReply);
+  rpc GetAutoScalingSettings(Empty) returns (GetAutoScalingReply);
+  rpc GetGameVersions(Empty) returns (GetVersionsReply);
+  rpc GetServerVersions(Empty) returns (GetVersionsReply);
+  rpc ApplyGameBuildAll(ApplyBuildAllRequest) returns (ErrorReply);
+  rpc ApplyGameBuildSelected(ApplyBuildSelectedRequest) returns (ErrorReply);
+  rpc SetDefaultGameVersion(Version) returns (ErrorReply);
+  rpc GetDefaultGameVersion(Empty) returns (Version);
+  rpc ApplyServerBuildAll(ApplyBuildAllRequest) returns (ErrorReply);
+  rpc ApplyServerBuildSelected(ApplyBuildSelectedRequest) returns (ErrorReply);
+  rpc SetDefaultServerVersion(Version) returns (ErrorReply);
+  rpc GetDefaultServerVersion(Empty) returns (Version);
+  rpc GetAvailableRegions(Empty) returns (RegionList);
+  rpc GetActiveRegions(Empty) returns (RegionList);
+  rpc AddActiveRegion(Region) returns (ErrorReply);
+  rpc UpdateActiveRegion(Region) returns (ErrorReply);
+  rpc DeleteActiveRegion(Region) returns (ErrorReply);
+}

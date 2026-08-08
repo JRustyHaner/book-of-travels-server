@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package MasterService;
+
+enum InstanceStatus {
+  INSTANCE_STATUS_CONTINUE = 0;
+  INSTANCE_STATUS_SHUTDOWN = 1;
+}
+
+message InstancePingRequest {
+   int32 room_port = 1;
+   int32 player_count = 2;
+}
+
+message InstancePongReply {
+   int32 next_ping_ms = 1;
+   InstanceStatus status = 2;
+   int32 max_player_count = 3;
+   bytes security_key = 4;
+   int32 time_zone_offset = 5;
+}
+
+service Instance {
+  rpc Ping(InstancePingRequest) returns (InstancePongReply);
+}

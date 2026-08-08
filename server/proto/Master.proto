@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package MasterService;
+
+message ErrorReply {
+   bool success = 1;
+   string msg = 2;
+}
+
+message PlayerCount {
+   int32 port = 1;
+   int32 count = 2;
+}
+
+message PingRequest {
+  repeated PlayerCount player_counts = 1;
+}
+
+message PongReply {
+   int64 update_timestamp = 1;
+   int32 next_ping_ms = 2;
+}
+
+message RoomConfig {
+   int64 id = 1;
+   string name = 2;
+   int32 max_player_count = 3;
+   int32 tags = 4;
+   string game_image = 5;
+   string game_version = 6;
+}
+
+message ConfigRequest {
+   string host = 1;
+   string instance_id = 2;
+   string server_version = 3;
+}
+
+message ConfigReply {
+   int64 server_id = 2;
+   int32 tags = 3;
+   string db_url = 4;
+   bytes security_key = 5;
+  repeated RoomConfig rooms = 1;
+}
+
+message RoomDescription {
+   int64 id = 6;
+   string name = 1;
+   string host = 2;
+   int32 port = 3;
+   int32 player_count = 4;
+   int32 max_player_count = 5;
+   bool is_active = 7;
+   int32 tags = 8;
+   string target_version = 9;
+   string current_version = 10;
+}
+
+message RoomRequest {
+   int64 update_timestamp = 1;
+  repeated RoomDescription rooms = 2;
+}
+
+message RoomReply {
+}
+
+service Master {
+  rpc Ping(PingRequest) returns (PongReply);
+  rpc GetConfig(ConfigRequest) returns (ConfigReply);
+  rpc SetRooms(RoomRequest) returns (RoomReply);
+}

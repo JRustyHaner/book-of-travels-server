@@ -1,0 +1,157 @@
+syntax = "proto3";
+
+package MasterService;
+
+import "Master.proto";
+
+enum EmailVerificationType {
+  EMAIL_VERIFICATION_TYPE_UNSPECIFIED = 0;
+  EMAIL_VERIFICATION_TYPE_REGISTER_ACCOUNT = 1;
+  EMAIL_VERIFICATION_TYPE_FORGOT_ACCOUNT_PASSWORD = 2;
+  EMAIL_VERIFICATION_TYPE_UPDATE_ACCOUNT_PASSWORD = 3;
+  EMAIL_VERIFICATION_TYPE_UPDATE_ACCOUNT_EMAIL = 4;
+}
+
+enum FeedbackEmailType {
+  EMAIL_BUG_REPORT = 0;
+  EMAIL_SUGGESTION = 1;
+  EMAIL_LIKE = 2;
+  EMAIL_DISLIKE = 3;
+}
+
+message AuthenticateReply {
+   string auth_token = 1;
+   string msg = 2;
+}
+
+message TextRequest {
+}
+
+message TextReply {
+   string text = 1;
+}
+
+message RegionServerRequest {
+   string region = 1;
+}
+
+message RegionListRequest {
+}
+
+message RegionListReply {
+  repeated string regions = 1;
+}
+
+message RoomListRequestRegion {
+   string region = 1;
+}
+
+message RoomListReplyRegion {
+  repeated RoomListReply rooms = 1;
+}
+
+message RoomListRequest {
+}
+
+message RoomListReply {
+  repeated RoomDescription rooms = 1;
+}
+
+message FeedbackEmailRequest {
+   FeedbackEmailType type = 1;
+   string headline = 2;
+   string report = 3;
+}
+
+message FeedbackEmailRequestLog {
+   FeedbackEmailType type = 1;
+   string headline = 2;
+   string report = 3;
+   bytes log = 4;
+}
+
+message FeedbackEmailRequestImage {
+   FeedbackEmailType type = 1;
+   string headline = 2;
+   string report = 3;
+   bytes image = 4;
+}
+
+message FeedbackEmailRequestImageLog {
+   FeedbackEmailType type = 1;
+   string headline = 2;
+   string report = 3;
+   bytes image = 4;
+   bytes log = 5;
+}
+
+message SendEmailVerificationRequest {
+   EmailVerificationType type = 1;
+   uint64 serviceId = 2;
+   string state = 3;
+   string email = 4;
+   string name = 5;
+}
+
+message Credentials {
+   string email = 1;
+   string password = 2;
+   uint64 serviceId = 3;
+}
+
+message AccountUnlockRequest {
+   Credentials credentials = 1;
+   string unlock_code = 2;
+}
+
+message EmailToken {
+   EmailVerificationType type = 1;
+   string token = 2;
+   string state = 3;
+   string email = 4;
+}
+
+message Verification {
+  oneof verification {
+    Credentials credentials = 1;
+    EmailToken email_token = 2;
+  }
+}
+
+message RegisterAccountRequest {
+   EmailToken email_token = 1;
+   string password = 2;
+   uint64 serviceId = 3;
+   string name = 4;
+}
+
+message ChangeAccountEmailRequest {
+   Verification verification = 1;
+   string old_email = 2;
+}
+
+message ChangeAccountPasswordRequest {
+   Verification verification = 1;
+   string new_password = 2;
+}
+
+service Game {
+  rpc GetRoomList(RoomListRequest) returns (RoomListReply);
+  rpc GetRoomListByRegion(RoomListRequestRegion) returns (RoomListReply);
+  rpc GetRegionList(RegionListRequest) returns (RegionListReply);
+  rpc GetNews(TextRequest) returns (TextReply);
+  rpc GetPatchNotes(TextRequest) returns (TextReply);
+  rpc GetRandomServer(TextRequest) returns (TextReply);
+  rpc GetRandomRegionServer(RegionServerRequest) returns (TextReply);
+  rpc SendEmailVerification(SendEmailVerificationRequest) returns (ErrorReply);
+  rpc VerifyEmailToken(EmailToken) returns (ErrorReply);
+  rpc RegisterAccount(RegisterAccountRequest) returns (ErrorReply);
+  rpc Authenticate(Credentials) returns (AuthenticateReply);
+  rpc ChangeAccountEmail(ChangeAccountEmailRequest) returns (ErrorReply);
+  rpc ChangeAccountPassword(ChangeAccountPasswordRequest) returns (ErrorReply);
+  rpc RedeemAccountStatus(AccountUnlockRequest) returns (ErrorReply);
+  rpc SendFeedbackEmail(FeedbackEmailRequest) returns (ErrorReply);
+  rpc SendFeedbackEmailLog(FeedbackEmailRequestLog) returns (ErrorReply);
+  rpc SendFeedbackEmailImage(FeedbackEmailRequestImage) returns (ErrorReply);
+  rpc SendFeedbackEmailImageLog(FeedbackEmailRequestImageLog) returns (ErrorReply);
+}

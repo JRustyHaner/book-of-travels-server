@@ -1,0 +1,17 @@
+# build artifacts
+server/master/bin/
+server/master/obj/
+server/plugin/bin/
+server/plugin/obj/
+**/bin/
+**/obj/
+
+# runtime state (contains user accounts / rooms — never distribute)
+server/master/data/
+
+# dev tooling
+.venv/
+__pycache__/
+
+# logs
+*.log
