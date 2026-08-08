@@ -1,17 +1,23 @@
-# Howto site (TLS via Caddy/LetsEncrypt). The game's own traffic (gRPC :1234,
-# Mirror/TCP :50050) is plaintext and exposed directly — Caddy cannot terminate
-# TLS for the game's insecure gRPC client, and doesn't do raw TCP proxying.
-# If you prefer a named host for the master later, add an A record for
-# braid-connect.flightlessbirdlabs.io -> same IP and uncomment the h2c block
-# (Caddy on a plaintext listener reverse-proxying to the master).
+# Braid — Caddy config
+# braid.flightlessbirdlabs.io      : howto site (static files from ../site)
+# braid-connect.flightlessbirdlabs.io:1234 : master gRPC, plaintext h2c
+#                                            (game client uses an insecure channel;
+#                                             Caddy just routes HTTP/2 to the master)
+# Ports 50050 (game instance) are NOT proxied here — they're published directly
+# by the instance container and must be open on the host firewall.
 
+# --- howto site ---
 braid.flightlessbirdlabs.io {
-	root * /srv/braid
-	encode gzip
+	root * /srv/braid-site
 	file_server
+	encode gzip
 }
 
-# Optional later: plaintext h2c reverse proxy for the master on :1234
-# http://braid-connect.flightlessbirdlabs.io:1234 {
-# 	reverse_proxy master:1234
-# }
+# --- master gRPC (h2c on :1234) ---
+braid-connect.flightlessbirdlabs.io:1234 {
+	reverse_proxy master:1234 {
+		transport http {
+			versions h2c
+		}
+	}
+}

@@ -107,6 +107,22 @@ from `Instance.Ping`; make sure the instance is registering (master log shows
 **Master restarts** — gameplay runs on the instance, not the master; a master
 restart only interrupts login. Instances re-register within ~5s.
 
+## Public host advertisement
+
+In Docker/NAT setups the instance pings from an unroutable container IP. Set
+`BOT_PUBLIC_HOST` on the master (compose passes it automatically) so rooms are
+advertised as a hostname clients can actually reach:
+
+```bash
+BOT_PUBLIC_HOST=braid-connect.example.com ./scripts/start-master.sh
+# master log: instance ping: 172.20.0.5:50050 players=N -> advertised braid-connect.example.com:50050
+```
+
+## Docker
+
+`deploy/docker-compose.yml` runs master + MariaDB + instance + Caddy; see
+`deploy/README.md` for the one-time game install and bring-up steps.
+
 ## Tests
 
 ```bash

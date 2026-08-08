@@ -1,65 +1,61 @@
-# Book of Travels private server — Ionos deployment
-#
-# Topology: master (gRPC accounts/rooms) + mariadb + caddy (howto site) +
-# game instance (BYOG, game folder bind-mounted, no game bytes in images).
-#
-# Ports (host-published):
-#   80/443  — howto site (caddy)
-#   1234    — master gRPC (h2c plaintext; the game client's insecure channel)
-#   50050   — game instance Mirror/TCP (what clients actually connect to)
-#
-# The master advertises BOT_PUBLIC_HOST to clients (the DNS name that resolves
-# to this host), NOT the instance's container IP.
-
 services:
   master:
-    build: ./master
-    restart: unless-stopped
+    build:
+      context: ..
+      dockerfile: deploy/master.Dockerfile
     environment:
-      - BOT_MASTER_HOST=0.0.0.0
-      - BOT_MASTER_PORT=1234
-      - BOT_PUBLIC_HOST=${BOT_PUBLIC_HOST:-braid.flightlessbirdlabs.io}
-    ports:
-      - "1234:1234"
+      BOT_MASTER_HOST: 0.0.0.0
+      BOT_MASTER_PORT: "1234"
+      # Hostname advertised to clients for the game server (see instance below)
+      BOT_PUBLIC_HOST: ${BOT_PUBLIC_HOST:-braid-connect.flightlessbirdlabs.io}
     volumes:
       - master-data:/app/data
+    restart: unless-stopped
 
   mariadb:
     image: mariadb:10.6
-    restart: unless-stopped
     environment:
-      - MARIADB_ROOT_PASSWORD=botroot
-      - MARIADB_DATABASE=bot
-      - MARIADB_USER=bot
-      - MARIADB_PASSWORD=bot
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?set in .env}
+      MARIADB_DATABASE: bot
+      MARIADB_USER: bot
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:?set in .env}
     volumes:
       - mariadb-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ubot", "-p${MARIADB_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
 
   instance:
-    build: ./instance
-    restart: unless-stopped
-    depends_on:
-      - master
-      - mariadb
+    build:
+      context: ..
+      dockerfile: deploy/instance.Dockerfile
     environment:
-      - MDY_DB_URL=Server=mariadb;Port=3306;Database=bot;Uid=bot;Pwd=bot
-      - MDY_INSTANCE_SERVER=master:1234
+      MDY_DB_URL: "Server=mariadb;Port=3306;Database=bot;Uid=bot;Pwd=${MARIADB_PASSWORD}"
+      MDY_INSTANCE_SERVER: "master:1234"
+    depends_on:
+      mariadb:
+        condition: service_healthy
     ports:
-      - "50050:50050"
+      - "50050:50050" # Mirror/TCP gameplay — open on the host firewall
     volumes:
-      - ${GAME_DIR:-/srv/bot/game}:/game:rw
+      - ${BRAID_GAME_DIR:?set BRAID_GAME_DIR (host game dir with BepInEx installed)}:/game
+    restart: unless-stopped
 
   caddy:
     image: caddy:2
-    restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
+      - "1234:1234" # braid-connect gRPC (h2c) — open on the host firewall
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ../web:/srv/braid:ro
+      - ../site:/srv/braid-site:ro
       - caddy-data:/data
       - caddy-config:/config
+    restart: unless-stopped
 
 volumes:
   master-data:

@@ -33,9 +33,7 @@ the property of its owners.
 | `scripts/` | `setup-game.sh`, `start-master.sh`, `start-instance.sh` |
 | `docs/` | `ARCHITECTURE.md`, `RUNBOOK.md` |
 
-## Quickstart (Linux server, 5 commands)
-
-```bash
+## Quickstart (Linux server, 5 commands)```bash
 # 1. master server (requires .NET 8 SDK)
 ./scripts/start-master.sh                          # listens on :1234 (gRPC)
 
@@ -52,6 +50,16 @@ python3 server/test/test_e2e.py 127.0.0.1:1234     # expect: ALL PASS
 # 5. play — launch the game through the mod, log in with any email/password
 #    (accounts are auto-provisioned by the master)
 ```
+
+### Docker deployment (recommended for a VPS)
+
+`deploy/` contains a full Docker stack — master + MariaDB + game instance +
+Caddy (howto site and the gRPC `braid-connect` endpoint). The master advertises
+a public hostname via `BOT_PUBLIC_HOST` so containerized instances are
+reachable by clients. See `deploy/README.md`.
+
+Client installers for friends (Windows + Linux) live in `release/`; the howto
+site is `site/index.html`.
 
 See `docs/RUNBOOK.md` for the full runbook and troubleshooting.
 

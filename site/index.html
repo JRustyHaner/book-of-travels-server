@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Braid — Book of Travels private server</title>
+<style>
+  :root { --ink:#2b2a26; --paper:#faf7f0; --accent:#8a5a2b; --soft:#efe9dc; --code:#1f1e1a; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+         color:var(--ink); background:var(--paper); line-height:1.55; }
+  header { background:var(--ink); color:var(--paper); padding:3rem 1.5rem 2.5rem; }
+  header h1 { margin:0 0 .25rem; font-size:2rem; letter-spacing:.02em; }
+  header p { margin:0; opacity:.85; max-width:60ch; }
+  main { max-width:760px; margin:0 auto; padding:2rem 1.5rem 4rem; }
+  h2 { margin-top:2.2rem; border-bottom:2px solid var(--soft); padding-bottom:.3rem; }
+  code, pre { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+  pre { background:var(--code); color:#e8e6df; padding:1rem; border-radius:8px; overflow-x:auto; font-size:.88rem; }
+  code { background:var(--soft); padding:.1em .35em; border-radius:4px; }
+  pre code { background:none; padding:0; }
+  .box { background:var(--soft); border-radius:8px; padding:1rem 1.2rem; margin:1rem 0; }
+  .box b { display:block; margin-bottom:.3rem; }
+  ol li, ul li { margin:.4rem 0; }
+  a { color:var(--accent); }
+  .muted { color:#6b675c; font-size:.92rem; }
+  .chip { display:inline-block; background:var(--soft); border-radius:999px; padding:.15rem .7rem; font-size:.85rem; margin:.15rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Braid</h1>
+  <p>A community-run private server for <em>Book of Travels</em> — after the official servers shut down, the road is still open. Own your copy, install the client mod, and wander with friends again.</p>
+</header>
+
+<main>
+  <h2>How it works</h2>
+  <p>Book of Travels is an online game whose servers were retired. The developers
+  explicitly opened the game to modding and left self-hosted servers to the
+  community. <b>Braid</b> is that: a server you connect to with your own copy of the
+  game. The client mod is a normal BepInEx mod — it changes no game files.</p>
+  <p><span class="chip">Windows</span><span class="chip">Linux</span><span class="chip">Free (bring your own game)</span></p>
+
+  <h2>Connect to the server</h2>
+  <div class="box">
+    <b>Master (accounts / rooms)</b>
+    <code>braid-connect.flightlessbirdlabs.io:1234</code><br>
+    <b>Game server</b>
+    <code>braid-connect.flightlessbirdlabs.io:50050</code><br>
+    <span class="muted">Log in with any email + password — the server creates the account for you.</span>
+  </div>
+
+  <h2>Install the client mod</h2>
+
+  <h3>Linux (Steam)</h3>
+  <ol>
+    <li>Make sure Book of Travels is installed via Steam.</li>
+    <li>Run the installer (it adds BepInEx + the mod, nothing else):</li>
+  </ol>
+  <pre><code>curl -fsSL https://raw.githubusercontent.com/JRustyHaner/book-of-travels-server/main/release/install-client-linux.sh -o /tmp/braid-install.sh
+bash /tmp/braid-install.sh</code></pre>
+  <ol start="3">
+    <li>Launch the game:</li>
+  </ol>
+  <pre><code>cd "$HOME/.local/share/Steam/steamapps/common/Book of Travels"
+./run_bepinex.sh ./BookOfTravels.x86_64</code></pre>
+
+  <h3>Windows (Steam)</h3>
+  <ol>
+    <li>Make sure Book of Travels is installed via Steam.</li>
+    <li>Open PowerShell and run:</li>
+  </ol>
+  <pre><code>Invoke-WebRequest https://raw.githubusercontent.com/JRustyHaner/book-of-travels-server/main/release/install-client-windows.ps1 -OutFile $env:TEMP\braid-install.ps1
+powershell -ExecutionPolicy Bypass -File $env:TEMP\braid-install.ps1</code></pre>
+  <ol start="3">
+    <li>Launch Book of Travels normally from Steam.</li>
+  </ol>
+
+  <h2>Host your own</h2>
+  <p>The whole stack is open source (Apache-2.0) and runs in Docker:
+  <a href="https://github.com/JRustyHaner/book-of-travels-server">github.com/JRustyHaner/book-of-travels-server</a>.
+  The README and <code>docs/RUNBOOK.md</code> cover standing up a master + instance for
+  you and your friends, up to 16 players per room.</p>
+
+  <h2>Notes &amp; fine print</h2>
+  <ul>
+    <li>Unofficial and independent — not affiliated with Might &amp; Delight.</li>
+    <li>You must own Book of Travels on Steam; no game files are distributed.</li>
+    <li>Gameplay traffic is plaintext — play on a trusted network or with people you trust.</li>
+    <li>Modding is explicitly permitted by the developers; self-hosting was left to the community.</li>
+  </ul>
+  <p class="muted">Questions? The <a href="https://discord.gg/Yq9C8Yf">Book of Travels modding Discord</a> is the best place to ask.</p>
+</main>
+</body>
+</html>

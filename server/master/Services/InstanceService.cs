@@ -26,9 +26,13 @@ public class InstanceSvc : MasterService.Instance.InstanceBase
     public override Task<InstancePongReply> Ping(InstancePingRequest request, ServerCallContext context)
     {
         var ip = context.GetHttpContext().Connection.RemoteIpAddress?.ToString() ?? "?";
-        var room = _store.RegisterRoom(ip, request.RoomPort, request.PlayerCount);
-        _log.LogInformation("instance ping: {Ip}:{Port} players={Players} -> {Rooms} room(s) registered",
-            ip, request.RoomPort, request.PlayerCount, _store.GetRooms().Count);
+        // In containerized/remote setups the instance pings from a NAT/container IP
+        // clients can't reach; BOT_PUBLIC_HOST lets ops advertise a hostname instead.
+        var publicHost = Environment.GetEnvironmentVariable("BOT_PUBLIC_HOST");
+        var host = string.IsNullOrWhiteSpace(publicHost) ? ip : publicHost;
+        var room = _store.RegisterRoom(host, request.RoomPort, request.PlayerCount);
+        _log.LogInformation("instance ping: {Ip}:{Port} players={Players} -> advertised {Advertised}:{Port}, {Rooms} room(s) registered",
+            ip, request.RoomPort, request.PlayerCount, host, request.RoomPort, _store.GetRooms().Count);
         return Task.FromResult(new InstancePongReply
         {
             NextPingMs = 5000,
