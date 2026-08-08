@@ -26,6 +26,7 @@ builder.WebHost.ConfigureKestrel(o =>
 
 var dataDir = Path.Combine(AppContext.BaseDirectory, "data");
 var store = new Store(Path.Combine(dataDir, "master.db"));
+store.PublicHost = Environment.GetEnvironmentVariable("BOT_PUBLIC_HOST"); // advertise a DNS name instead of the instance's (container) IP
 var jwt = new JwtTokens(Path.Combine(dataDir, "jwt.key"));
 
 builder.Services.AddSingleton(store);

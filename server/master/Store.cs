@@ -23,6 +23,10 @@ public class Store
 {
     private const string DefaultRegion = "eu-central-1";
 
+    /// <summary>Hostname advertised to clients instead of the instance's peer IP (for Docker/NAT).</summary>
+    public string? PublicHost { get; set; }
+
+
     private readonly string _connString;
     private long _nextServerId = 1;
     private readonly ConcurrentDictionary<string, RoomEntry> _rooms = new();

@@ -1,0 +1,68 @@
+# Book of Travels private server — Ionos deployment
+#
+# Topology: master (gRPC accounts/rooms) + mariadb + caddy (howto site) +
+# game instance (BYOG, game folder bind-mounted, no game bytes in images).
+#
+# Ports (host-published):
+#   80/443  — howto site (caddy)
+#   1234    — master gRPC (h2c plaintext; the game client's insecure channel)
+#   50050   — game instance Mirror/TCP (what clients actually connect to)
+#
+# The master advertises BOT_PUBLIC_HOST to clients (the DNS name that resolves
+# to this host), NOT the instance's container IP.
+
+services:
+  master:
+    build: ./master
+    restart: unless-stopped
+    environment:
+      - BOT_MASTER_HOST=0.0.0.0
+      - BOT_MASTER_PORT=1234
+      - BOT_PUBLIC_HOST=${BOT_PUBLIC_HOST:-braid.flightlessbirdlabs.io}
+    ports:
+      - "1234:1234"
+    volumes:
+      - master-data:/app/data
+
+  mariadb:
+    image: mariadb:10.6
+    restart: unless-stopped
+    environment:
+      - MARIADB_ROOT_PASSWORD=botroot
+      - MARIADB_DATABASE=bot
+      - MARIADB_USER=bot
+      - MARIADB_PASSWORD=bot
+    volumes:
+      - mariadb-data:/var/lib/mysql
+
+  instance:
+    build: ./instance
+    restart: unless-stopped
+    depends_on:
+      - master
+      - mariadb
+    environment:
+      - MDY_DB_URL=Server=mariadb;Port=3306;Database=bot;Uid=bot;Pwd=bot
+      - MDY_INSTANCE_SERVER=master:1234
+    ports:
+      - "50050:50050"
+    volumes:
+      - ${GAME_DIR:-/srv/bot/game}:/game:rw
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../web:/srv/braid:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  master-data:
+  mariadb-data:
+  caddy-data:
+  caddy-config:

@@ -124,16 +124,18 @@ public class GameSvc : MasterService.Game.GameBase
     {
         var rooms = _store.GetRooms();
         var room = rooms.Count > 0 ? rooms[Random.Shared.Next(rooms.Count)] : null;
-        _log.LogInformation("random server requested -> {Host} ({Rooms} room(s))", room?.Host ?? "NONE", rooms.Count);
-        return Task.FromResult(new TextReply { Text = room?.Host ?? "" });
+        var host = _store.PublicHost ?? room?.Host ?? "";
+        _log.LogInformation("random server requested -> {Host} ({Rooms} room(s))", host, rooms.Count);
+        return Task.FromResult(new TextReply { Text = host });
     }
 
     public override Task<TextReply> GetRandomRegionServer(RegionServerRequest request, ServerCallContext context)
     {
         var rooms = _store.GetRooms();
         var room = rooms.Count > 0 ? rooms[Random.Shared.Next(rooms.Count)] : null;
-        _log.LogInformation("random region server ({Region}) -> {Host} ({Rooms} room(s))", request.Region, room?.Host ?? "NONE", rooms.Count);
-        return Task.FromResult(new TextReply { Text = room?.Host ?? "" });
+        var host = _store.PublicHost ?? room?.Host ?? "";
+        _log.LogInformation("random region server ({Region}) -> {Host} ({Rooms} room(s))", request.Region, host, rooms.Count);
+        return Task.FromResult(new TextReply { Text = host });
     }
 
     public override Task<TextReply> GetNews(TextRequest request, ServerCallContext context)
@@ -150,7 +152,7 @@ public class GameSvc : MasterService.Game.GameBase
             reply.Rooms.Add(new RoomDescription
             {
                 Name = "Book of Travels",
-                Host = r.Host,
+                Host = _store.PublicHost ?? r.Host,
                 Port = r.Port,
                 PlayerCount = r.PlayerCount,
                 MaxPlayerCount = 16,
