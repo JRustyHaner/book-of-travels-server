@@ -20,8 +20,12 @@ else
 fi
 
 # 2) build + install the plugin
+# .NET 8 SDK: prefer $DOTNET_ROOT, else the dotnet-install.sh default (~/.dotnet)
+if [ -d "${DOTNET_ROOT:-$HOME/.dotnet}" ]; then
+    export DOTNET_ROOT="${DOTNET_ROOT:-$HOME/.dotnet}"
+    export PATH="$PATH:$DOTNET_ROOT"
+fi
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
-# .NET 8 SDK must be on PATH (or set DOTNET_ROOT + add \$DOTNET_ROOT to PATH)
 export BOT_GAME_DIR="$GAME"
 (cd "$DIR/../server/plugin" && dotnet build -c Release -v q >/dev/null)
 mkdir -p "$GAME/BepInEx/plugins"

@@ -19,8 +19,10 @@ builder.WebHost.ConfigureKestrel(o =>
     // The game's StartInstanceConnection() parses MDY_INSTANCE_SERVER's port by
     // int.TryParse of the substring AFTER the last ':' — which includes the colon,
     // so it ALWAYS fails and falls back to the hardcoded 7689. Listen there too so
-    // the instance's Instance.Ping actually reaches us.
-    o.Listen(System.Net.IPAddress.Parse(host), 7689, lo => lo.Protocols =
+    // the instance's Instance.Ping actually reaches us (overridable for tests /
+    // when another process owns 7689).
+    var extraPort = int.Parse(Environment.GetEnvironmentVariable("BOT_EXTRA_PORT") ?? "7689");
+    o.Listen(System.Net.IPAddress.Parse(host), extraPort, lo => lo.Protocols =
         Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2);
 });
 
