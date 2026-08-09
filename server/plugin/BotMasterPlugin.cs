@@ -68,6 +68,7 @@ public class BotMasterPlugin : BaseUnityPlugin
             if (nm == null) return;
             if (Cfg.Role == "instance") InstanceDriver.Tick(nm);
             Patches.StreamTick();
+            Patches.ReportTelemetry();
         }
         catch (Exception e)
         {
@@ -108,6 +109,8 @@ public class BotConfig
         StreamPressureMB = file.Bind("general", "streamPressureMB", 4096, "pressure mode: unload empty levels when MemAvailable drops below this (MB)").Value;
         IdleCloseDelay = file.Bind("general", "idleCloseDelay", 30, "seconds with no player in-world before idle-close").Value;
         IdleCloseMinUptime = file.Bind("general", "idleCloseMinUptime", 120, "minimum server uptime (s) before idle-close may run").Value;
+        TelemetryToken = file.Bind("general", "telemetryToken", "", "shared secret for POST /api/players (empty = disabled)").Value.Trim('"', ' ');
+        TelemetryUrl = file.Bind("general", "telemetryUrl", "http://master:8080/players", "master REST endpoint for player telemetry").Value.Trim('"', ' ');
     }
 
     public bool LazyLevels { get; }
@@ -125,6 +128,8 @@ public class BotConfig
     public bool StreamingPressure => StreamMode == "pressure";
     public int IdleCloseDelay { get; }
     public int IdleCloseMinUptime { get; }
+    public string TelemetryToken { get; }
+    public string TelemetryUrl { get; }
 }
 
 /// <summary>All Harmony patches.</summary>
@@ -586,6 +591,46 @@ public static class Patches
         catch (Exception e)
         {
             BotMasterPlugin.Log.LogWarning($"stream tick: {e.Message}");
+        }
+    }
+
+    // ---- Player telemetry: report who is where to the master every ~10s,
+    // so the website can show a live map. Optional (telemetryToken in cfg).
+    private static float _nextTelemetry;
+
+    internal static void ReportTelemetry()
+    {
+        if (BotMasterPlugin.Cfg.Role != "instance") return;
+        if (string.IsNullOrEmpty(BotMasterPlugin.Cfg.TelemetryToken)) return;
+        if (Time.time < _nextTelemetry) return;
+        _nextTelemetry = Time.time + 10f;
+        try
+        {
+            var entries = new System.Collections.Generic.List<string>();
+            if (PlayerBase.onlinePlayers != null)
+            {
+                foreach (var kv in PlayerBase.onlinePlayers)
+                {
+                    var p = kv.Value;
+                    if (p == null || string.IsNullOrEmpty(p.CharacterName) || string.IsNullOrEmpty(p.CurrentLevel)) continue;
+                    var pos = p.CachedTransform != null ? p.CachedTransform.position : UnityEngine.Vector3.zero;
+                    var safeName = p.CharacterName.Replace("\\", "\\\\").Replace("\"", "\\\"");
+                    entries.Add($"{{\"name\":\"{safeName}\",\"level\":\"{p.CurrentLevel}\",\"x\":{pos.x.ToString("0.0")},\"z\":{pos.z.ToString("0.0")}}}");
+                }
+            }
+            if (entries.Count == 0) return;
+            var json = "{\"players\":[" + string.Join(",", entries) + "]}";
+            using var client = new System.Net.Http.HttpClient();
+            var req = new System.Net.Http.HttpRequestMessage(System.Net.Http.HttpMethod.Post, BotMasterPlugin.Cfg.TelemetryUrl);
+            req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + BotMasterPlugin.Cfg.TelemetryToken);
+            req.Content = new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json");
+            using var resp = client.PostAsync(BotMasterPlugin.Cfg.TelemetryUrl, req.Content)
+                .GetAwaiter().GetResult();
+            if ((int)resp.StatusCode >= 400) BotMasterPlugin.Log.LogWarning($"telemetry: HTTP {(int)resp.StatusCode}");
+        }
+        catch (Exception e)
+        {
+            BotMasterPlugin.Log.LogWarning($"telemetry: {e.Message}");
         }
     }
 

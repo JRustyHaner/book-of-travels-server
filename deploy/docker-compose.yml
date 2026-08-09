@@ -11,6 +11,8 @@ services:
       BOT_PUBLIC_HOST: ${BOT_PUBLIC_HOST:-braid-connect.flightlessbirdlabs.io}
       # Admin token for POST /admin/invite (generate one, keep secret)
       BRAID_ADMIN_TOKEN: ${BRAID_ADMIN_TOKEN:?set in .env}
+      # Shared secret the instance uses to POST player positions (telemetry)
+      BRAID_TELEMETRY_TOKEN: ${BRAID_TELEMETRY_TOKEN:?set in .env}
     volumes:
       - master-data:/app/data
     restart: unless-stopped

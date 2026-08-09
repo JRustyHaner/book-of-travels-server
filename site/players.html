@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Braid — Who's Online</title>
+<style>
+  :root { --ink:#2b2a26; --paper:#faf7f0; --accent:#8a5a2b; --soft:#efe9dc; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+         color:var(--ink); background:var(--paper); line-height:1.5; }
+  header { background:var(--ink); color:var(--paper); padding:1.6rem 1.5rem 1.2rem; }
+  header h1 { margin:0; font-size:1.5rem; }
+  header a { color:#e8e2d3; }
+  main { max-width:900px; margin:0 auto; padding:1.5rem 1.5rem 4rem; }
+  .status { color:#6b675c; font-size:.9rem; margin:.5rem 0 1rem; }
+  #grid { display:grid; grid-template-columns:repeat(6, 1fr); gap:8px; }
+  .cell { background:var(--soft); border-radius:8px; min-height:96px; padding:6px; position:relative; font-size:.78rem; }
+  .cell .lvl { font-weight:600; }
+  .cell .dot { position:absolute; width:10px; height:10px; border-radius:50%; background:var(--accent);
+               transform:translate(-50%,-50%); box-shadow:0 0 0 2px #fff; }
+  .cell .pname { position:absolute; transform:translate(-50%,8px); background:var(--accent); color:#fff;
+                 border-radius:4px; padding:0 4px; font-size:.7rem; white-space:nowrap; }
+  .empty { color:#9a9588; }
+  ul#list { margin:1rem 0; padding-left:1.2rem; }
+  .muted { color:#6b675c; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Braid — <a href="/">home</a> · Who's online</h1>
+</header>
+<main>
+  <div class="status" id="status">loading…</div>
+  <div id="grid"></div>
+  <h2>Players</h2>
+  <ul id="list" class="empty">none online</ul>
+  <p class="muted">Positions refresh every 10 seconds from the game server.</p>
+</main>
+<script>
+  const LEVELS = ["West_01","West_02","West_03","West_04","West_05","West_06",
+    "West_07","West_08","West_09","West_11","West_12","West_13","West_14",
+    "West_15","West_16","West_17","West_18","West_19","West_20","West_21",
+    "West_22","West_23","East_09","South_03","Transition_01","Transition_02",
+    "Transition_03","Transition_04","Outmark_01","Outmark_02","Outmark_03","Outmark_04"];
+
+  async function refresh() {
+    try {
+      const res = await fetch('/api/players');
+      const data = await res.json();
+      const players = data.players || [];
+      document.getElementById('status').textContent =
+        new Date(data.updated * 1000).toLocaleTimeString() + ' · ' + players.length + ' player(s) online';
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+      for (const lvl of LEVELS) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        const inLevel = players.filter(p => p.level === lvl);
+        cell.innerHTML = '<span class="lvl">' + lvl + '</span>';
+        if (inLevel.length === 0) {
+          cell.innerHTML += '<span class="empty">—</span>';
+        } else {
+          for (const p of inLevel) {
+            // naive schematic position: clamp x/z into the cell
+            const px = Math.max(8, Math.min(92, 50 + (p.x / 60) * 40));
+            const py = Math.max(12, Math.min(85, 50 - (p.z / 60) * 35));
+            const dot = document.createElement('div');
+            dot.className = 'dot'; dot.style.left = px + '%'; dot.style.top = py + '%';
+            const lbl = document.createElement('div');
+            lbl.className = 'pname'; lbl.style.left = px + '%'; lbl.style.top = (py + 3) + '%';
+            lbl.textContent = p.name;
+            cell.appendChild(dot); cell.appendChild(lbl);
+          }
+        }
+        grid.appendChild(cell);
+      }
+      const list = document.getElementById('list');
+      if (players.length === 0) { list.className = 'empty'; list.textContent = 'none online'; }
+      else {
+        list.className = '';
+        list.innerHTML = '';
+        for (const p of players) {
+          const li = document.createElement('li');
+          li.textContent = p.name + ' — ' + p.level + ' (' + p.x + ', ' + p.z + ')';
+          list.appendChild(li);
+        }
+      }
+    } catch (e) {
+      document.getElementById('status').textContent = 'map unavailable: ' + e;
+    }
+  }
+  refresh();
+  setInterval(refresh, 10000);
+</script>
+</body>
+</html>

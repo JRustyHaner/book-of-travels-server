@@ -14,6 +14,8 @@ builder.Logging.SetMinimumLevel(LogLevel.Information);
 var port = int.Parse(Environment.GetEnvironmentVariable("BOT_MASTER_PORT") ?? "1234");
 var host = Environment.GetEnvironmentVariable("BOT_MASTER_HOST") ?? "0.0.0.0";
 var httpPort = int.Parse(Environment.GetEnvironmentVariable("BOT_HTTP_PORT") ?? "8080"); // REST: /register, /admin/invite
+var telemetryToken = Environment.GetEnvironmentVariable("BRAID_TELEMETRY_TOKEN")
+                 ?? Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(12));
 var adminToken = Environment.GetEnvironmentVariable("BRAID_ADMIN_TOKEN")
                  ?? Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16));
 
@@ -123,6 +125,43 @@ app.MapPost("/invite", async (HttpContext ctx) =>
     return Results.Ok(new { code });
 }).RequireRateLimiting("auth");
 
+// --- REST: player telemetry (instance posts every ~10s; site reads) ---
+var telemetry = new System.Collections.Concurrent.ConcurrentDictionary<string, (string name, string level, float x, float z, long ts)>();
+
+app.MapGet("/players", () =>
+{
+    var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+    var fresh = telemetry.Values.Where(v => now - v.ts < 30).ToList();
+    return Results.Ok(new { updated = now, players = fresh.OrderBy(p => p.name) });
+});
+
+app.MapPost("/players", async (HttpContext ctx) =>
+{
+    var auth = ctx.Request.Headers.Authorization.ToString();
+    if (!auth.Equals($"Bearer {telemetryToken}", System.StringComparison.Ordinal))
+        return Results.Json(new { error = "unauthorized" }, statusCode: 401);
+    using var doc = await System.Text.Json.JsonDocument.ParseAsync(ctx.Request.Body);
+    var root = doc.RootElement;
+    if (!root.TryGetProperty("players", out var arr) || arr.ValueKind != System.Text.Json.JsonValueKind.Array)
+        return Results.BadRequest(new { error = "players[] required" });
+    var ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+    var seen = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+    foreach (var p in arr.EnumerateArray())
+    {
+        var name = p.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "";
+        var level = p.TryGetProperty("level", out var l) ? l.GetString() ?? "" : "";
+        float x = p.TryGetProperty("x", out var xx) && xx.ValueKind == System.Text.Json.JsonValueKind.Number ? (float)xx.GetDouble() : 0f;
+        float z = p.TryGetProperty("z", out var zz) && zz.ValueKind == System.Text.Json.JsonValueKind.Number ? (float)zz.GetDouble() : 0f;
+        if (name == "") continue;
+        telemetry[name] = (name, level, x, z, ts);
+        seen.Add(name);
+    }
+    // drop players that stopped reporting (left the world)
+    foreach (var kv in telemetry)
+        if (!seen.Contains(kv.Key) && ts - kv.Value.ts > 30) telemetry.TryRemove(kv.Key, out _);
+    return Results.Ok(new { ok = true });
+}).RequireRateLimiting("auth");
+
 // --- REST: admin invite-code generation (Bearer BRAID_ADMIN_TOKEN) ---
 app.MapPost("/admin/invite", async (HttpContext ctx) =>
 {
@@ -152,4 +191,5 @@ static bool LogInfo(HttpContext ctx, string msg)
 Console.WriteLine($"[BotMaster] listening on {host}:{port} (gRPC, h2c) + {host}:{httpPort} (REST)");
 Console.WriteLine($"[BotMaster] jwt key: {Convert.ToBase64String(jwt.Key)[..12]}... ({jwt.Key.Length} bytes)");
 Console.WriteLine($"[BotMaster] admin token: {adminToken}");
+Console.WriteLine($"[BotMaster] telemetry token: {telemetryToken}");
 app.Run();
