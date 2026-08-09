@@ -7,12 +7,41 @@
 param(
     [string]$MasterHost = "braid-connect.flightlessbirdlabs.io",
     [int]$MasterPort = 1234,
-    [string]$GameDir = "${env:ProgramFiles(x86)}\Steam\steamapps\common\Book of Travels",
+    [string]$GameDir = "",
     [string]$Version = "latest"
 )
 
+# Locate Book of Travels by scanning Steam's library folders (libraryfolders.vdf),
+# so the script works regardless of which drive/folder Steam installed to.
+function Find-GameDir {
+    param([string]$Default)
+    if (Test-Path "$Default\BookOfTravels.exe") { return $Default }
+    $steamPath = $null
+    try { $steamPath = (Get-ItemProperty -Path "HKCU:\Software\Valve\Steam" -Name SteamPath -ErrorAction Stop).SteamPath } catch {}
+    $libraries = New-Object System.Collections.ArrayList
+    if ($steamPath -and (Test-Path "$steamPath\steamapps")) { [void]$libraries.Add("$steamPath\steamapps") }
+    $vdf = "$steamPath\steamapps\libraryfolders.vdf"
+    if (Test-Path $vdf) {
+        foreach ($line in Get-Content $vdf) {
+            if ($line -match '"path"\s+"(.+)"') { [void]$libraries.Add("$($Matches[1])\steamapps") }
+        }
+    }
+    foreach ($lib in $libraries) {
+        $candidate = Join-Path $lib "common\Book of Travels"
+        if (Test-Path "$candidate\BookOfTravels.exe") { return $candidate }
+    }
+    return $Default
+}
+
 $ErrorActionPreference = "Stop"
 $base = "https://github.com/JRustyHaner/book-of-travels-server/releases/$Version/download"
+
+$defaultDir = "${env:ProgramFiles(x86)}\Steam\steamapps\common\Book of Travels"
+if (-not $GameDir) { $GameDir = Find-GameDir -Default $defaultDir }
+if (-not (Test-Path "$GameDir\BookOfTravels.exe")) {
+    Write-Error "Book of Travels not found. Tried '$GameDir' and scanned your Steam library folders. Pass -GameDir <path>."
+    exit 1
+}
 
 Write-Host "==> Braid client installer"
 Write-Host "    master: $MasterHost`:$MasterPort"
