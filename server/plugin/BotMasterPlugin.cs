@@ -8,6 +8,7 @@ using BepInEx.Logging;
 using HarmonyLib;
 using Microsoft.IdentityModel.Tokens;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace BotMasterPlugin;
 
@@ -92,8 +93,12 @@ public class BotConfig
         // Optional "email,password" — auto-fills the login form (the game's keyboard input
         // is unreliable in windowed/XWayland, and remote mode starts with empty fields).
         AutoLogin = file.Bind("general", "autoLogin", "", "optional email,password to pre-fill the login form").Value.Trim('"', '\\');
+        // Instance memory saving: after the world loads, keep only the randomizer's
+        // ACTIVE levels (plus the manager scenes) and unload the rest.
+        LazyLevels = file.Bind("general", "lazyLevels", true, "instance: keep only active-set levels loaded (Tier 2a)").Value;
     }
 
+    public bool LazyLevels { get; }
     public string AutoLogin { get; }
 }
 
@@ -191,6 +196,82 @@ public static class Patches
         catch (Exception e)
         {
             BotMasterPlugin.Log.LogWarning($"OnStartPostfix: {e.Message}");
+        }
+    }
+
+    // ---- Tier 2a: after the world loads, keep only the randomizer's ACTIVE levels.
+    // The shipped OnStartServer loads ALL bundled levels (~111); the level
+    // randomizer has already chosen the active arrangement
+    // (SyncDictionaryConnectionRandom / island scenes), so unload everything else.
+    // Runs before any player can connect, so it's race-free. No game code changes.
+    [HarmonyPatch(typeof(NetworkManagerMMO), "OnStartServer")]
+    [HarmonyPostfix]
+    private static void OnStartServerPostfix(NetworkManagerMMO __instance)
+    {
+        if (BotMasterPlugin.Cfg.Role != "instance" || !BotMasterPlugin.Cfg.LazyLevels) return;
+        try
+        {
+            var keep = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase)
+            {
+                "Essentials", "Entry", "Entry_Audio", "Lobby"
+            };
+
+            // active randomized levels (the world graph the randomizer chose)
+            var nsm = NetworkSyncManager.Instance;
+            if (nsm != null)
+            {
+                foreach (var k in nsm.SyncDictionaryConnectionRandom.Keys) keep.Add(k);
+            }
+
+            // active island scenes (private field, best-effort)
+            var lr = PersistentTools.Instance?.LevelRandomizer;
+            if (lr != null)
+            {
+                var f = typeof(LevelRandomizer).GetField("activeIslandScenes", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+                if (f?.GetValue(lr) is System.Collections.IList list)
+                {
+                    foreach (var o in list)
+                    {
+                        var sn = o?.GetType().GetField("sceneName")?.GetValue(o) as string;
+                        if (!string.IsNullOrEmpty(sn)) keep.Add(sn);
+                    }
+                }
+            }
+
+            // safety: if we couldn't determine any active world levels, leave everything
+            // loaded (same behavior as before) rather than unloading the world.
+            if (keep.Count <= 4)
+            {
+                var names = new System.Collections.Generic.List<string>();
+                for (int i = 0; i < SceneManager.sceneCount; i++) names.Add(SceneManager.GetSceneAt(i).name);
+                BotMasterPlugin.Log.LogInfo($"lazy: no active level set found (dict={nsm?.SyncDictionaryConnectionRandom.Count ?? -1}); loaded scenes [{names.Count}]: {string.Join(",", names)}");
+                return;
+            }
+
+            int kept = 0, unloaded = 0;
+            for (int i = 0; i < SceneManager.sceneCount; i++)
+            {
+                var scene = SceneManager.GetSceneAt(i);
+                if (string.IsNullOrEmpty(scene.name) || keep.Contains(scene.name)) { kept++; continue; }
+                try
+                {
+                    var lvlMgr = UtilityManager.Instance?.RelevantLevelManager(scene.name);
+                    lvlMgr?.DespawnAll();
+                    UtilityManager.Instance?.ShouldAddLoadedLevel(scene.name, false);
+                    SceneManager.UnloadSceneAsync(scene);
+                    unloaded++;
+                    BotMasterPlugin.Log.LogInfo($"lazy: unloaded {scene.name}");
+                }
+                catch (Exception e)
+                {
+                    BotMasterPlugin.Log.LogWarning($"lazy: failed to unload {scene.name}: {e.Message}");
+                }
+            }
+            BotMasterPlugin.Log.LogInfo($"lazy: kept {kept} scene(s), unloaded {unloaded} (active-set only)");
+        }
+        catch (Exception e)
+        {
+            BotMasterPlugin.Log.LogWarning($"lazy OnStartServer: {e.Message}");
         }
     }
 
