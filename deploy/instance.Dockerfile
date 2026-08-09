@@ -6,7 +6,7 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates curl unzip \
+        ca-certificates curl unzip file \
         libc6 libstdc++6 libgomp1 zlib1g \
         libgl1 libglx-mesa0 libx11-6 libxcursor1 libxrandr2 \
         libxi6 libxinerama1 libxss1 libasound2 libpulse0 \

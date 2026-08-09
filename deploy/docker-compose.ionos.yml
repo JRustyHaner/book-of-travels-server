@@ -1,0 +1,11 @@
+# Ionos VPS override — this host already runs its own Caddy on :80/:443 (the
+# braid howto site is served from a block in THAT Caddyfile at
+# /root/assets/Caddyfile, see deploy/README §"Existing Caddy host"). The
+# master publishes :1234 directly for clients
+# (braid-connect.flightlessbirdlabs.io:1234); no Caddy proxy is needed.
+#
+# Usage: docker compose -f docker-compose.yml -f docker-compose.ionos.yml up -d
+services:
+  master:
+    ports:
+      - "1234:1234"

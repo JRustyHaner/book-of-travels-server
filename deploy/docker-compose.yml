@@ -46,6 +46,7 @@ services:
 
   caddy:
     image: caddy:2
+    profiles: ["caddy"] # omit with: docker compose up -d (see deploy/README "Existing Caddy host")
     ports:
       - "80:80"
       - "443:443"

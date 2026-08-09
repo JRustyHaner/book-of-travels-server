@@ -66,3 +66,16 @@ install scripts fetch the latest client bundle from the GitHub release
   both up.
 - BOT_PUBLIC_HOST: the master advertises this hostname (instead of the
   container IP) as the game server address clients connect to on :50050.
+
+## Existing Caddy host (this VPS)
+
+The Ionos box already ran Caddy on :80/:443. Braid integrates with it instead
+of running a second Caddy:
+
+- **Site**: the howto page is served by the existing Caddy — copy `../site/`
+  to `/root/assets/braid-site/`, add the `braid.flightlessbirdlabs.io` block
+  (root `* /assets/braid-site`) to `/root/assets/Caddyfile`, then
+  `docker exec caddy caddy reload --config /etc/caddy/Caddyfile`.
+- **gRPC**: no proxy — `docker-compose.ionos.yml` publishes the master on
+  `:1234` directly; clients reach `braid-connect.flightlessbirdlabs.io:1234`.
+- Open firewall ports: `80`, `443`, `1234`, `50050`.

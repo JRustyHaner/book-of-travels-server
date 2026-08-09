@@ -2,6 +2,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 COPY server/master/ ./master/
+COPY server/proto/ ./proto/
 RUN dotnet publish master -c Release -o /out
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
