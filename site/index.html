@@ -46,8 +46,38 @@
     <code>braid-connect.flightlessbirdlabs.io:1234</code><br>
     <b>Game server</b>
     <code>braid-connect.flightlessbirdlabs.io:50050</code><br>
-    <span class="muted">Log in with any email + password — the server creates the account for you.</span>
+    <span class="muted">Accounts are invite-only — create yours above, then log in with that email + password.</span>
   </div>
+
+  <h2>Get access</h2>
+  <p>Accounts are invite-only. If you have an invite code, create your account
+  here, then log in in-game with the same email and password. (No account is
+  created just by logging in.)</p>
+  <div class="box">
+    <form id="regform" onsubmit="event.preventDefault(); register();">
+      <label>Invite code<br><input id="invite" required autocomplete="off" style="width:100%;padding:.4em"></label><br><br>
+      <label>Email<br><input id="email" type="email" required style="width:100%;padding:.4em"></label><br><br>
+      <label>Password (min 8 chars)<br><input id="password" type="password" required minlength="8" style="width:100%;padding:.4em"></label><br><br>
+      <button type="submit">Create account</button>
+      <span id="regmsg" class="muted"></span>
+    </form>
+  </div>
+  <script>
+    async function register() {
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          email: document.getElementById('email').value,
+          password: document.getElementById('password').value,
+          invite: document.getElementById('invite').value.trim().toUpperCase()
+        })
+      });
+      const out = document.getElementById('regmsg');
+      const data = await res.json().catch(() => ({}));
+      out.textContent = res.ok ? ('✓ ' + data.msg) : ('✗ ' + (data.error || 'registration failed'));
+    }
+  </script>
 
   <h2>Install the client mod</h2>
 

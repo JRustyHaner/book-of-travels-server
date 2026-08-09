@@ -50,6 +50,13 @@ public class Store
                 banned_until  TEXT NOT NULL DEFAULT '',
                 unlocks       TEXT NOT NULL DEFAULT ''
             );
+            CREATE TABLE IF NOT EXISTS invites (
+                code       TEXT PRIMARY KEY,
+                email      TEXT NOT NULL DEFAULT '',
+                used_by    TEXT NOT NULL DEFAULT '',
+                reusable   INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT ''
+            );
             """;
         cmd.ExecuteNonQuery();
     }
@@ -61,7 +68,7 @@ public class Store
         return c;
     }
 
-    /// <summary>Authenticate, auto-creating the account if missing. Returns (id, banned).</summary>
+    /// <summary>Authenticate an existing account. Returns (id, banned); id == 0 means bad credentials.</summary>
     public (long id, bool banned) Authenticate(string email, string password, ulong serviceId)
     {
         email = email.Trim().ToLowerInvariant();
@@ -81,23 +88,89 @@ public class Store
                 return (0, false);
             }
         }
-        // auto-create (matches IsValidAccountLite)
-        var (salt2, hash2) = Hash(password);
-        using (var ins = conn.CreateCommand())
+        return (0, false); // no auto-provision: accounts are created via RegisterAccount / POST /register
+    }
+
+    /// <summary>Create an account (invite must already be validated by the caller).</summary>
+    public string CreateAccount(string email, string password, ulong serviceId)
+    {
+        email = email.Trim().ToLowerInvariant();
+        var (salt, hash) = Hash(password);
+        using var conn = Open();
+        using (var cmd = conn.CreateCommand())
         {
-            ins.CommandText = "INSERT INTO accounts (email, password_hash, salt, service_id) VALUES (@e, @h, @s, @sid)";
-            ins.Parameters.AddWithValue("@e", email);
-            ins.Parameters.AddWithValue("@h", hash2);
-            ins.Parameters.AddWithValue("@s", salt2);
-            ins.Parameters.AddWithValue("@sid", (long)serviceId);
-            ins.ExecuteNonQuery();
+            cmd.CommandText = "INSERT INTO accounts (email, password_hash, salt, service_id) VALUES (@e, @h, @s, @sid)";
+            cmd.Parameters.AddWithValue("@e", email);
+            cmd.Parameters.AddWithValue("@h", hash);
+            cmd.Parameters.AddWithValue("@s", salt);
+            cmd.Parameters.AddWithValue("@sid", (long)serviceId);
+            try
+            {
+                cmd.ExecuteNonQuery();
+                return "";
+            }
+            catch (SqliteException) when (cmd.CommandText.Contains("email"))
+            {
+                return "An account with that email already exists.";
+            }
         }
-        using (var sel = conn.CreateCommand())
+    }
+
+    public string CreateInvite(string? email, bool reusable)
+    {
+        var code = GenerateInviteCode();
+        using var conn = Open();
+        using (var cmd = conn.CreateCommand())
         {
-            sel.CommandText = "SELECT account_id FROM accounts WHERE email=@e";
-            sel.Parameters.AddWithValue("@e", email);
-            return ((long)sel.ExecuteScalar()!, false);
+            cmd.CommandText = "INSERT INTO invites (code, email, reusable, created_at) VALUES (@c, @e, @r, @t)";
+            cmd.Parameters.AddWithValue("@c", code);
+            cmd.Parameters.AddWithValue("@e", (email ?? "").Trim().ToLowerInvariant());
+            cmd.Parameters.AddWithValue("@r", reusable ? 1 : 0);
+            cmd.Parameters.AddWithValue("@t", DateTime.UtcNow.ToString("o"));
+            cmd.ExecuteNonQuery();
         }
+        return code;
+    }
+
+    /// <summary>Validate + consume an invite code for the given email. Returns (ok, error).</summary>
+    public (bool ok, string error) TryConsumeInvite(string code, string email)
+    {
+        email = email.Trim().ToLowerInvariant();
+        code = code.Trim();
+        using var conn = Open();
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT email, used_by, reusable FROM invites WHERE code=@c";
+            cmd.Parameters.AddWithValue("@c", code);
+            using var r = cmd.ExecuteReader();
+            if (!r.Read()) return (false, "Invalid invite code.");
+            var boundEmail = r.GetString(0);
+            var usedBy = r.GetString(1);
+            var reusable = r.GetInt64(2) != 0;
+            if (!string.IsNullOrEmpty(boundEmail) && !boundEmail.Equals(email, StringComparison.OrdinalIgnoreCase))
+                return (false, "That invite is bound to a different email.");
+            if (!reusable && !string.IsNullOrEmpty(usedBy))
+                return (false, "That invite code has already been used.");
+            // consume (single-use only): race-safe via the WHERE clause
+            if (!reusable)
+            {
+                using var up = conn.CreateCommand();
+                up.CommandText = "UPDATE invites SET used_by=@e WHERE code=@c AND used_by=''";
+                up.Parameters.AddWithValue("@e", email);
+                up.Parameters.AddWithValue("@c", code);
+                if (up.ExecuteNonQuery() == 0) return (false, "That invite code has already been used.");
+            }
+        }
+        return (true, "");
+    }
+
+    private static string GenerateInviteCode()
+    {
+        const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no ambiguous chars
+        var rng = System.Security.Cryptography.RandomNumberGenerator.GetBytes(6);
+        var chars = new char[6];
+        for (int i = 0; i < 6; i++) chars[i] = alphabet[rng[i] % alphabet.Length];
+        return new string(chars);
     }
 
     public bool VerifyPassword(string email, string password)

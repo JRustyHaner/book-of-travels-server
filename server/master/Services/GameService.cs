@@ -35,10 +35,14 @@ public class GameSvc : MasterService.Game.GameBase
 
     public override Task<ErrorReply> RegisterAccount(RegisterAccountRequest request, ServerCallContext context)
     {
-        if (!_store.ConsumeEmailToken(request.EmailToken.Token, out var email))
-            email = request.EmailToken.Email;
-        // auto-create via authenticate semantics; passwords replace if exists
-        _store.Authenticate(email, request.Password, request.ServiceId);
+        // Invite-gated: the EmailToken.Token field carries the invite code (friends
+        // get codes from the admin; the in-game registration UI enters it there).
+        var email = request.EmailToken.Email.Trim();
+        var (ok, err) = _store.TryConsumeInvite(request.EmailToken.Token, email);
+        if (!ok) return Task.FromResult(new ErrorReply { Success = false, Msg = err });
+        var createErr = _store.CreateAccount(email, request.Password, request.ServiceId);
+        if (createErr != "") return Task.FromResult(new ErrorReply { Success = false, Msg = createErr });
+        _log.LogInformation("registered {Email} via invite", email);
         return Task.FromResult(new ErrorReply { Success = true, Msg = "Account registered." });
     }
 

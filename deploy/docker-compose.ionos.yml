@@ -1,11 +1,18 @@
-# Ionos VPS override — this host already runs its own Caddy on :80/:443 (the
-# braid howto site is served from a block in THAT Caddyfile at
-# /root/assets/Caddyfile, see deploy/README §"Existing Caddy host"). The
-# master publishes :1234 directly for clients
-# (braid-connect.flightlessbirdlabs.io:1234); no Caddy proxy is needed.
+# Ionos VPS override — the host already runs its own Caddy on :80/:443 (the
+# braid site + /api registration live there, see deploy/braid-caddy-block.txt).
+# The master joins the host's root_proxy_net so that Caddy proxies /api to it
+# by name (master:8080); :1234 (gRPC) and :50050 (game) are published directly
+# for clients.
 #
 # Usage: docker compose -f docker-compose.yml -f docker-compose.ionos.yml up -d
 services:
   master:
+    networks:
+      - default
+      - root_proxy_net
     ports:
       - "1234:1234"
+
+networks:
+  root_proxy_net:
+    external: true

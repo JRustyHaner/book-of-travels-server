@@ -1,0 +1,21 @@
+# Braid blocks for a HOST that already runs Caddy (e.g. the Ionos VPS).
+# Append to /root/assets/Caddyfile, then:
+#   docker exec caddy caddy reload --config /etc/caddy/Caddyfile
+#
+# The /api/* path proxies to the master's REST listener (master:8080 on the
+# shared root_proxy_net) so the site's registration form works over HTTPS.
+# Ports 1234 (master gRPC) and 50050 (game) are published directly by compose
+# and must be open on the host firewall.
+
+# --- howto site + registration API ---
+braid.flightlessbirdlabs.io {
+	import common_headers
+	handle /api/* {
+		reverse_proxy master:8080
+	}
+	handle {
+		root * /assets/braid-site
+		file_server
+		encode gzip
+	}
+}

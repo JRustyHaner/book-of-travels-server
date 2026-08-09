@@ -132,3 +132,20 @@ python3 server/test/test_e2e.py 127.0.0.1:1234    # ALL PASS expected
 Requires the generated protobuf stubs (`grpc_tools.protoc` against
 `server/proto/*.proto`). Covers: auth, JWT signature, room registration,
 random-server assignment, region/news, admin view, account persistence.
+
+## Invites & registration (accounts are invite-only)
+
+- `POST /admin/invite` (Bearer `BRAID_ADMIN_TOKEN`, env) → `{"code":"XXXXXX"}`.
+  Optional body: `{"email":"friend@x", "reusable":true}` (email-bound and/or reusable).
+- `POST /register` (public, rate-limited) body `{"email","password","invite"}` creates
+  the account; then the player logs in in-game with that email + password.
+- `Authenticate` no longer auto-provisions: unknown emails are rejected.
+- The game's `RegisterAccount` gRPC is invite-gated too (the invite code goes in the
+  email-token field).
+- Rate limiting: 60 requests / 10 min per IP on auth endpoints.
+- The braid site has a registration form; on a host with an existing Caddy, proxy
+  `/api/*` → the master REST (see `deploy/braid-caddy-block.txt`).
+- **Note for the Caddy host**: the running config is autosaved in the container's
+  `/config` volume — after editing the Caddyfile, `caddy reload` can silently keep the
+  old config; delete `/root/data/caddy_config/caddy_config/caddy/autosave.json` and
+  restart the container to force a fresh load.

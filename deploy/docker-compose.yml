@@ -6,8 +6,11 @@ services:
     environment:
       BOT_MASTER_HOST: 0.0.0.0
       BOT_MASTER_PORT: "1234"
+      BOT_HTTP_PORT: "8080"
       # Hostname advertised to clients for the game server (see instance below)
       BOT_PUBLIC_HOST: ${BOT_PUBLIC_HOST:-braid-connect.flightlessbirdlabs.io}
+      # Admin token for POST /admin/invite (generate one, keep secret)
+      BRAID_ADMIN_TOKEN: ${BRAID_ADMIN_TOKEN:?set in .env}
     volumes:
       - master-data:/app/data
     restart: unless-stopped

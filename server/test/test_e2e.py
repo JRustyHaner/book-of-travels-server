@@ -8,7 +8,7 @@ Flow (mirrors the game):
   verify JWT signature against security_key (what OnServerLogin does)
   client -> Game.GetRandomServer / GetRoomList              -> the registered room
 """
-import sys, json, base64, hmac, hashlib, time
+import sys, json, os, base64, hmac, hashlib, time
 sys.path.insert(0, "/tmp/proto_py")
 import grpc
 import Game_pb2, Game_pb2_grpc
@@ -25,8 +25,36 @@ def check(name, cond, extra=""):
     print(f"  [{'PASS' if cond else 'FAIL'}] {name} {extra}")
     if not cond: fail += 1
 
-print("== Game.Authenticate ==")
+print("== Game.Authenticate (invite-gated) ==")
 game = Game_pb2_grpc.GameStub(ch)
+
+# accounts are invite-gated now: create one via the REST /register endpoint
+import urllib.request
+def register(email, password, invite):
+    req = urllib.request.Request("http://127.0.0.1:8080/register",
+        data=json.dumps({"email": email, "password": password, "invite": invite}).encode(),
+        headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return json.load(r).get("ok", False)
+    except Exception:
+        return False
+
+# auto-create must be OFF
+reply = game.Authenticate(Game_pb2.Credentials(email="player1@example.com", password="secret", serviceId=76561198000000001))
+check("no auto-provision (unknown account rejected)", reply.auth_token == "" and reply.msg != "", repr(reply.msg))
+
+# admin invite code (BRAID_ADMIN_TOKEN from env)
+admin_token = os.environ.get("BRAID_ADMIN_TOKEN", "testadmintoken")
+inv_req = urllib.request.Request("http://127.0.0.1:8080/admin/invite",
+    data=json.dumps({"email": "player1@example.com"}).encode(),
+    headers={"Content-Type": "application/json", "Authorization": f"Bearer {admin_token}"})
+with urllib.request.urlopen(inv_req, timeout=5) as r:
+    invite = json.load(r)["code"]
+check("invite code generated", bool(invite))
+
+# register with the invite, then authenticate
+check("register with invite", register("player1@example.com", "secret", invite))
 reply = game.Authenticate(Game_pb2.Credentials(email="player1@example.com", password="secret", serviceId=76561198000000001))
 check("auth_token non-empty", bool(reply.auth_token))
 check("msg empty on success", reply.msg == "", repr(reply.msg))
