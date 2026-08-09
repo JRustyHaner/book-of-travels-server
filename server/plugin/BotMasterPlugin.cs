@@ -103,6 +103,8 @@ public class BotConfig
         StreamMode = file.Bind("general", "streamLevels", "pressure", "off | on | pressure (per-player level streaming)").Value.Trim('"', ' ');
         // RAM-conservative default: shed empty levels unless the host has >=4GB free.
         StreamPressureMB = file.Bind("general", "streamPressureMB", 4096, "pressure mode: unload empty levels when MemAvailable drops below this (MB)").Value;
+        IdleCloseDelay = file.Bind("general", "idleCloseDelay", 30, "seconds with no player in-world before idle-close").Value;
+        IdleCloseMinUptime = file.Bind("general", "idleCloseMinUptime", 120, "minimum server uptime (s) before idle-close may run").Value;
     }
 
     public bool LazyLevels { get; }
@@ -118,6 +120,8 @@ public class BotConfig
     };
 
     public bool StreamingPressure => StreamMode == "pressure";
+    public int IdleCloseDelay { get; }
+    public int IdleCloseMinUptime { get; }
 }
 
 /// <summary>All Harmony patches.</summary>
@@ -274,7 +278,7 @@ public static class Patches
                 try
                 {
                     var lvlMgr = UtilityManager.Instance?.RelevantLevelManager(scene.name);
-                    lvlMgr?.DespawnAll();
+                    // no explicit DespawnAll (scene unload tears down; explicit despawn races it)
                     UtilityManager.Instance?.ShouldAddLoadedLevel(scene.name, false);
                     SceneManager.UnloadSceneAsync(scene);
                     unloaded++;
@@ -348,6 +352,23 @@ public static class Patches
         BotMasterPlugin.Log.LogInfo($"stream: preloaded {nextLevel} for arrival");
     }
 
+    // Initial world entry (and any CurrentLevel change): the client sets its
+    // CurrentLevel via CmdSetCurrentLevel; preload+spawn the target level
+    // server-side before the handler applies it, so the player never spawns
+    // into an unloaded level (important now that idle servers unload everything).
+    [HarmonyPatch(typeof(PlayerBase), "UserCode_CmdSetCurrentLevel__String")]
+    [HarmonyPrefix]
+    private static void OnCmdSetCurrentLevel(string level)
+    {
+        if (BotMasterPlugin.Cfg.Role != "instance" || !BotMasterPlugin.Cfg.StreamingEnabled) return;
+        if (!IsStreamableScene(level)) return;
+        var s = SceneManager.GetSceneByName(level);
+        if (s.IsValid() && s.isLoaded) return;
+        SceneManager.LoadScene(level, LoadSceneMode.Additive);
+        StreamSpawn(level);
+        BotMasterPlugin.Log.LogInfo($"stream: preloaded {level} for world entry");
+    }
+
     private static int MemAvailableMB()
     {
         try
@@ -387,8 +408,11 @@ public static class Patches
     private static bool _unloadedSinceCollect;
     private static float _nextUnusedCollect;
     private static float _nextResidentLog;
+    private static float _serverStartTime;
+    private static float _lastActiveAt;
     private static readonly System.Collections.Generic.HashSet<string> _unloading =
         new(System.StringComparer.OrdinalIgnoreCase);
+    private const int MaxUnloadsPerTick = 4; // gradual release, avoid a memory storm under load
 
     internal static void StreamTick()
     {
@@ -406,47 +430,96 @@ public static class Patches
                     if (!string.IsNullOrEmpty(lvl)) occupied.Add(lvl);
                 }
             }
-            // don't start unloading until someone is actually in the world
-            if (occupied.Count == 0) return;
+            // IDLE: no client in the world -> close every scene except the manager
+            // ("parent") scenes. Gated: the server must have been up for
+            // IdleCloseMinUptime and idle for IdleCloseDelay. Re-entry preloads
+            // via CmdSetCurrentLevel, so the world comes back on demand.
+            if (_serverStartTime <= 0) _serverStartTime = Time.time;
+            if (occupied.Count > 0) _lastActiveAt = Time.time;
 
-            // pressure mode: only shed empty levels while the host is low on RAM,
-            // so NPCs keep simulating normally whenever there's headroom.
-            var mayUnload = true;
-            if (BotMasterPlugin.Cfg.StreamingPressure)
+            if (occupied.Count == 0
+                && Time.time - _serverStartTime > BotMasterPlugin.Cfg.IdleCloseMinUptime
+                && Time.time - _lastActiveAt > BotMasterPlugin.Cfg.IdleCloseDelay)
             {
-                var availMB = MemAvailableMB();
-                mayUnload = availMB < BotMasterPlugin.Cfg.StreamPressureMB;
-                if (mayUnload != _lastPressure)
-                {
-                    _lastPressure = mayUnload;
-                    BotMasterPlugin.Log.LogInfo($"stream: pressure {(mayUnload ? "LOW" : "OK")} (MemAvailable {availMB} MB, threshold {BotMasterPlugin.Cfg.StreamPressureMB} MB)");
-                }
-            }
-
-            // unload world levels with no players
-            if (mayUnload)
-            {
-                for (int i = 0; i < SceneManager.sceneCount; i++)
+                int unloadedThisTick = 0;
+                for (int i = 0; i < SceneManager.sceneCount && unloadedThisTick < MaxUnloadsPerTick; i++)
                 {
                     var scene = SceneManager.GetSceneAt(i);
                     var name = scene.name;
-                    if (!IsStreamableScene(name) || occupied.Contains(name)) continue;
-                    if (_unloading.Contains(name)) continue; // already mid-unload
+                    if (_alwaysKeep.Contains(name)) continue; // parent scenes stay
+                    if (_unloading.Contains(name)) continue;
                     if (!scene.isLoaded) continue;
                     try
                     {
                         var lvlMgr = UtilityManager.Instance?.RelevantLevelManager(name);
-                        lvlMgr?.DespawnAll();
+                        // (no explicit DespawnAll — scene unload tears down; explicit despawn races it)
                         UtilityManager.Instance?.ShouldAddLoadedLevel(name, false);
                         SceneManager.UnloadSceneAsync(scene);
                         _unloading.Add(name);
-                        BotMasterPlugin.Log.LogInfo($"stream: unloaded {name} (0 players)");
+                        unloadedThisTick++;
+                        BotMasterPlugin.Log.LogInfo($"stream: closed {name} (idle, 0 players)");
                         _unloadedSinceCollect = true;
                     }
                     catch (Exception e)
                     {
-                        BotMasterPlugin.Log.LogWarning($"stream: unload {name}: {e.Message}");
+                        BotMasterPlugin.Log.LogWarning($"stream: idle unload {name}: {e.Message}");
                     }
+                }
+            }
+            else
+            {
+                // pressure mode: only shed empty levels while the host is low on RAM,
+                // so NPCs keep simulating normally whenever there's headroom.
+                var mayUnload = true;
+                if (BotMasterPlugin.Cfg.StreamingPressure)
+                {
+                    var availMB = MemAvailableMB();
+                    mayUnload = availMB < BotMasterPlugin.Cfg.StreamPressureMB;
+                    if (mayUnload != _lastPressure)
+                    {
+                        _lastPressure = mayUnload;
+                        BotMasterPlugin.Log.LogInfo($"stream: pressure {(mayUnload ? "LOW" : "OK")} (MemAvailable {availMB} MB, threshold {BotMasterPlugin.Cfg.StreamPressureMB} MB)");
+                    }
+                }
+
+                // unload world levels with no players
+                if (mayUnload)
+                {
+                    int unloadedThisTick = 0;
+                    for (int i = 0; i < SceneManager.sceneCount && unloadedThisTick < MaxUnloadsPerTick; i++)
+                    {
+                        var scene = SceneManager.GetSceneAt(i);
+                        var name = scene.name;
+                        if (!IsStreamableScene(name) || occupied.Contains(name)) continue;
+                        if (_unloading.Contains(name)) continue; // already mid-unload
+                        if (!scene.isLoaded) continue;
+                        try
+                        {
+                            var lvlMgr = UtilityManager.Instance?.RelevantLevelManager(name);
+                            // no explicit DespawnAll (scene unload tears down; explicit despawn races it)
+                            UtilityManager.Instance?.ShouldAddLoadedLevel(name, false);
+                            SceneManager.UnloadSceneAsync(scene);
+                            _unloading.Add(name);
+                            unloadedThisTick++;
+                            BotMasterPlugin.Log.LogInfo($"stream: unloaded {name} (0 players)");
+                            _unloadedSinceCollect = true;
+                        }
+                        catch (Exception e)
+                        {
+                            BotMasterPlugin.Log.LogWarning($"stream: unload {name}: {e.Message}");
+                        }
+                    }
+                }
+
+                // load occupied levels that aren't loaded (synchronous, like the game's own loads)
+                foreach (var name in occupied)
+                {
+                    if (!IsStreamableScene(name)) continue;
+                    var sc = SceneManager.GetSceneByName(name);
+                    if (sc.IsValid() && sc.isLoaded) continue;
+                    SceneManager.LoadScene(name, LoadSceneMode.Additive);
+                    StreamSpawn(name);
+                    BotMasterPlugin.Log.LogInfo($"stream: loaded {name} (occupied)");
                 }
             }
 
