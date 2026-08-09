@@ -39,6 +39,12 @@ public class BotMasterPlugin : BaseUnityPlugin
         Cfg = new BotConfig(Config);
         Logger.LogInfo($"BotMaster plugin loaded. role={Cfg.Role}, master={Cfg.MasterHost}:{Cfg.MasterPort}");
 
+        // Headless instance: it never renders, so load scene textures at the
+        // smallest mip (1/256 memory) to cut the world's RAM footprint.
+        // Clients are unaffected (each renders with its own full-res textures).
+        QualitySettings.globalTextureMipmapLimit = 4;
+        Logger.LogInfo($"globalTextureMipmapLimit set to 4 (headless memory saving)");
+
         try
         {
             Harmony.CreateAndPatchAll(typeof(Patches));
