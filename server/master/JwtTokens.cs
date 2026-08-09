@@ -50,4 +50,30 @@ public class JwtTokens
         };
         return handler.CreateToken(descriptor);
     }
+
+    /// <summary>Validate a token (signature + expiry) and return the account id, or null.</summary>
+    public long? Validate(string token)
+    {
+        try
+        {
+            var handler = new JsonWebTokenHandler();
+            var result = handler.ValidateToken(token, new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = Issuer,
+                ValidateAudience = false, // frontend/instance tokens share the signing key
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.FromMinutes(2),
+                IssuerSigningKey = _signingKey
+            });
+            if (!result.IsValid) return null;
+            var jwt = result.SecurityToken as JsonWebToken;
+            if (jwt == null || !jwt.TryGetPayloadValue<long>("uid", out var uid)) return null;
+            return uid;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }

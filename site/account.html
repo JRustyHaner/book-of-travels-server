@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Braid — Invites</title>
+<style>
+  :root { --ink:#2b2a26; --paper:#faf7f0; --accent:#8a5a2b; --soft:#efe9dc; --code:#1f1e1a; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+         color:var(--ink); background:var(--paper); line-height:1.55; }
+  header { background:var(--ink); color:var(--paper); padding:2rem 1.5rem 1.5rem; }
+  header h1 { margin:0; font-size:1.6rem; }
+  header a { color:#e8e2d3; }
+  main { max-width:560px; margin:0 auto; padding:2rem 1.5rem 4rem; }
+  .box { background:var(--soft); border-radius:8px; padding:1rem 1.2rem; margin:1rem 0; }
+  label { display:block; margin:.6rem 0 .2rem; font-size:.95rem; }
+  input[type=email], input[type=password], input[type=text] { width:100%; padding:.45em; border:1px solid #ccc; border-radius:6px; }
+  button { background:var(--accent); color:#fff; border:0; border-radius:6px; padding:.55em 1.2em; cursor:pointer; font-size:1rem; }
+  button:disabled { opacity:.5; cursor:default; }
+  .code { font-family: ui-monospace, Consolas, monospace; font-size:1.5rem; letter-spacing:.15em;
+          background:var(--code); color:#e8e6df; padding:.6em 1em; border-radius:8px; text-align:center; margin:.6rem 0; }
+  .muted { color:#6b675c; font-size:.9rem; }
+  .err { color:#a33; }
+  .ok { color:#2a7a3a; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Braid — <a href="/">home</a></h1>
+  <p>Log in with your Braid account to create invite codes for friends.</p>
+</header>
+
+<main>
+  <div id="loginbox" class="box">
+    <form id="loginform" onsubmit="event.preventDefault(); doLogin();">
+      <label>Email</label><input id="email" type="email" required>
+      <label>Password</label><input id="password" type="password" required>
+      <br><br><button type="submit" id="loginbtn">Log in</button>
+      <span id="loginmsg" class="muted"></span>
+    </form>
+  </div>
+
+  <div id="invitebox" class="box" style="display:none">
+    <p class="ok" id="who"></p>
+    <label>Optional: bind to a specific email</label>
+    <input id="invite_email" type="email" placeholder="friend@example.com (optional)">
+    <label><input id="reusable" type="checkbox"> Reusable code (multiple friends)</label>
+    <br><br><button id="invitebtn" onclick="makeInvite()">Create invite code</button>
+    <span id="invitemsg" class="muted"></span>
+    <div id="newcode" class="code" style="display:none"></div>
+    <p class="muted">Share the code with your friend — they enter it in the
+    <a href="/#getaccess">registration form</a> to create their account.</p>
+  </div>
+
+  <p class="muted"><a href="#" onclick="logout();return false;">Log out</a></p>
+</main>
+
+<script>
+  let token = sessionStorage.getItem('braid_token') || '';
+  const $ = id => document.getElementById(id);
+
+  async function api(path, body) {
+    const res = await fetch('/api/' + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json',
+                 ...(token ? { 'Authorization': 'Bearer ' + token } : {}) },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, data };
+  }
+
+  async function doLogin() {
+    $('loginbtn').disabled = true;
+    $('loginmsg').className = 'muted';
+    $('loginmsg').textContent = 'logging in…';
+    const r = await api('login', { email: $('email').value, password: $('password').value });
+    $('loginbtn').disabled = false;
+    if (!r.ok) { $('loginmsg').className = 'err'; $('loginmsg').textContent = r.data.error || 'login failed'; return; }
+    token = r.data.token;
+    sessionStorage.setItem('braid_token', token);
+    showAuthed();
+  }
+
+  async function makeInvite() {
+    $('invitebtn').disabled = true;
+    $('invitemsg').textContent = '';
+    const body = {};
+    if ($('invite_email').value) body.email = $('invite_email').value;
+    if ($('reusable').checked) body.reusable = true;
+    const r = await api('invite', body);
+    $('invitebtn').disabled = false;
+    if (!r.ok) { $('invitemsg').className = 'err'; $('invitemsg').textContent = r.data.error || 'failed'; return; }
+    $('newcode').textContent = r.data.code;
+    $('newcode').style.display = 'block';
+  }
+
+  function showAuthed() {
+    $('loginbox').style.display = 'none';
+    $('invitebox').style.display = 'block';
+    $('who').textContent = 'Logged in as ' + $('email').value;
+  }
+
+  function logout() {
+    token = ''; sessionStorage.removeItem('braid_token');
+    $('loginbox').style.display = 'block';
+    $('invitebox').style.display = 'none';
+    $('newcode').style.display = 'none';
+  }
+
+  if (token) showAuthed();
+</script>
+</body>
+</html>

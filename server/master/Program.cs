@@ -88,6 +88,40 @@ app.MapPost("/register", async (HttpContext ctx) =>
     return Results.Ok(new { ok = true, msg = "Account created. Log in in-game with that email and password." });
 }).RequireRateLimiting("auth");
 
+// --- REST: login (existing account -> JWT) for the site's frontend ---
+app.MapPost("/login", async (HttpContext ctx) =>
+{
+    using var doc = await System.Text.Json.JsonDocument.ParseAsync(ctx.Request.Body);
+    var root = doc.RootElement;
+    var email = root.TryGetProperty("email", out var e) ? e.GetString() ?? "" : "";
+    var password = root.TryGetProperty("password", out var p) ? p.GetString() ?? "" : "";
+    var (id, banned) = store.Authenticate(email, password, 0);
+    if (id == 0 || banned)
+        return Results.Json(new { error = "Invalid credentials." }, statusCode: 401);
+    _ = LogInfo(ctx, $"frontend login {email} -> account {id}");
+    return Results.Ok(new { token = jwt.Sign(id) });
+}).RequireRateLimiting("auth");
+
+// --- REST: any authenticated user may mint an invite code ---
+app.MapPost("/invite", async (HttpContext ctx) =>
+{
+    var auth = ctx.Request.Headers.Authorization.ToString();
+    var token = auth.StartsWith("Bearer ", StringComparison.Ordinal) ? auth["Bearer ".Length..] : "";
+    var uid = jwt.Validate(token);
+    if (uid == null) return Results.Json(new { error = "unauthorized" }, statusCode: 401);
+    string? email = null; bool reusable = false;
+    if (ctx.Request.ContentLength is > 0)
+    {
+        using var doc = await System.Text.Json.JsonDocument.ParseAsync(ctx.Request.Body);
+        var root = doc.RootElement;
+        if (root.TryGetProperty("email", out var e)) email = e.GetString();
+        if (root.TryGetProperty("reusable", out var r) && r.ValueKind == System.Text.Json.JsonValueKind.True) reusable = true;
+    }
+    var code = store.CreateInvite(email, reusable);
+    _ = LogInfo(ctx, $"account {uid} created invite {code}");
+    return Results.Ok(new { code });
+}).RequireRateLimiting("auth");
+
 // --- REST: admin invite-code generation (Bearer BRAID_ADMIN_TOKEN) ---
 app.MapPost("/admin/invite", async (HttpContext ctx) =>
 {
