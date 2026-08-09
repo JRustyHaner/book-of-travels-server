@@ -7,7 +7,7 @@
 param(
     [string]$MasterHost = "braid-connect.flightlessbirdlabs.io",
     [int]$MasterPort = 1234,
-    [string]$GameDir = "$env:ProgramFiles(x86)\Steam\steamapps\common\Book of Travels",
+    [string]$GameDir = "${env:ProgramFiles(x86)}\Steam\steamapps\common\Book of Travels",
     [string]$Version = "latest"
 )
 
