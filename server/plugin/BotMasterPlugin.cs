@@ -101,7 +101,8 @@ public class BotConfig
         // players, load on entry. Modes: off | on (always) | pressure (only when
         // the host is low on RAM, so NPCs simulate normally when there's headroom).
         StreamMode = file.Bind("general", "streamLevels", "pressure", "off | on | pressure (per-player level streaming)").Value.Trim('"', ' ');
-        StreamPressureMB = file.Bind("general", "streamPressureMB", 2048, "pressure mode: unload empty levels when MemAvailable drops below this (MB)").Value;
+        // RAM-conservative default: shed empty levels unless the host has >=4GB free.
+        StreamPressureMB = file.Bind("general", "streamPressureMB", 4096, "pressure mode: unload empty levels when MemAvailable drops below this (MB)").Value;
     }
 
     public bool LazyLevels { get; }

@@ -145,7 +145,7 @@ random-server assignment, region/news, admin view, account persistence.
 - Rate limiting: 60 requests / 10 min per IP on auth endpoints.
 - Invite pool: at most `BRAID_MAX_INVITES` (default 12) unused codes exist at once; using a code frees a slot. Any authenticated user can mint via `POST /invite`.
 - Per-player level streaming (`streamLevels = off | on | pressure`, default
-  `pressure` with `streamPressureMB` = 2048): unloads world levels with no
+  `pressure` with `streamPressureMB` = 4096 (RAM-conservative default: shed empty levels unless ≥4GB is free)): unloads world levels with no
   players when the host is low on RAM; levels reload with correct NPC/vehicle
   spawns on player entry (arrival preload). In `pressure` mode the full world
   stays simulated while memory allows. Room scenes and manager scenes are never
