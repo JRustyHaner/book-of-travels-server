@@ -384,6 +384,11 @@ public static class Patches
 
     private static float _nextStreamTick;
     private static bool _lastPressure;
+    private static bool _unloadedSinceCollect;
+    private static float _nextUnusedCollect;
+    private static float _nextResidentLog;
+    private static readonly System.Collections.Generic.HashSet<string> _unloading =
+        new(System.StringComparer.OrdinalIgnoreCase);
 
     internal static void StreamTick()
     {
@@ -426,19 +431,53 @@ public static class Patches
                     var scene = SceneManager.GetSceneAt(i);
                     var name = scene.name;
                     if (!IsStreamableScene(name) || occupied.Contains(name)) continue;
+                    if (_unloading.Contains(name)) continue; // already mid-unload
+                    if (!scene.isLoaded) continue;
                     try
                     {
                         var lvlMgr = UtilityManager.Instance?.RelevantLevelManager(name);
                         lvlMgr?.DespawnAll();
                         UtilityManager.Instance?.ShouldAddLoadedLevel(name, false);
                         SceneManager.UnloadSceneAsync(scene);
+                        _unloading.Add(name);
                         BotMasterPlugin.Log.LogInfo($"stream: unloaded {name} (0 players)");
+                        _unloadedSinceCollect = true;
                     }
                     catch (Exception e)
                     {
                         BotMasterPlugin.Log.LogWarning($"stream: unload {name}: {e.Message}");
                     }
                 }
+            }
+
+            // return freed scene memory to the OS (Unity keeps it cached otherwise)
+            if (_unloadedSinceCollect && Time.time > _nextUnusedCollect)
+            {
+                _nextUnusedCollect = Time.time + 30f;
+                _unloadedSinceCollect = false;
+                Resources.UnloadUnusedAssets();
+                System.GC.Collect();
+                BotMasterPlugin.Log.LogInfo("stream: Resources.UnloadUnusedAssets() + GC.Collect()");
+            }
+
+            // periodic resident-scene summary (also prunes the in-flight unload set)
+            if (Time.time > _nextResidentLog)
+            {
+                _nextResidentLog = Time.time + 60f;
+                int resident = 0;
+                for (int i = 0; i < SceneManager.sceneCount; i++)
+                {
+                    var s = SceneManager.GetSceneAt(i);
+                    if (s.isLoaded && IsStreamableScene(s.name)) resident++;
+                }
+                if (_unloading.Count > 0)
+                {
+                    foreach (var gone in new System.Collections.Generic.List<string>(_unloading))
+                    {
+                        if (!SceneManager.GetSceneByName(gone).IsValid()) _unloading.Remove(gone);
+                    }
+                }
+                BotMasterPlugin.Log.LogInfo($"stream: {resident} world level(s) resident");
             }
 
             // load occupied levels that aren't loaded (synchronous, like the game's own loads)
