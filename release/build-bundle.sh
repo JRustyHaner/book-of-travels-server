@@ -23,7 +23,7 @@ echo "==> building plugin"
 PLUGIN="$ROOT/server/plugin/bin/Release/netstandard2.1/BotMasterPlugin.dll"
 [ -f "$PLUGIN" ] || { echo "plugin build failed"; exit 1; }
 
-rm -rf "$OUT/linux" "$OUT/win" "$OUT/braid-client-*.zip"
+rm -rf "$OUT/linux" "$OUT/win" "$OUT"/braid-client-*.zip
 
 # --- linux bundle (BepInEx runtime we ship in this repo) ----------------------
 echo "==> linux bundle"
@@ -35,11 +35,14 @@ cp "$PLUGIN" "$OUT/linux/BepInEx/plugins/"
 
 # --- windows bundle (BepInEx win_x64 from upstream, plugin is OS-agnostic) ----
 echo "==> windows bundle"
-WIN_URL="$(curl -fsSL https://api.github.com/repos/BepInEx/BepInEx/releases/latest \
-  | python3 -c "import json,sys; d=json.load(sys.stdin); print(next(a['browser_download_url'] for a in d['assets'] if 'win_x64' in a['name']))")"
+# BepInEx 6 Unity Mono (win-x64) — the plugin is built for BepInEx 6, so we must
+# NOT use the repo's "latest release" (still BepInEx 5.x) or the plugin won't load.
+WIN_URL="$(curl -fsSL "https://api.github.com/repos/BepInEx/BepInEx/releases?per_page=40" \
+  | python3 -c "import json,sys; rels=json.load(sys.stdin); print(next(a['browser_download_url'] for r in rels for a in r.get('assets',[]) if 'Unity.Mono-win-x64' in a['name']))")"
 curl -fsSL "$WIN_URL" -o /tmp/bepinex-win.zip
 mkdir -p "$OUT/win"
 unzip -qo /tmp/bepinex-win.zip -d "$OUT/win"
+chmod -R u+rwx "$OUT/win" # the BepInEx zip ships mode-000 dir entries
 mkdir -p "$OUT/win/BepInEx/plugins"
 cp "$PLUGIN" "$OUT/win/BepInEx/plugins/"
 (cd "$OUT/win" && zip -qr "$OUT/braid-client-windows.zip" .)

@@ -40,11 +40,14 @@ public class BotMasterPlugin : BaseUnityPlugin
         Cfg = new BotConfig(Config);
         Logger.LogInfo($"BotMaster plugin loaded. role={Cfg.Role}, master={Cfg.MasterHost}:{Cfg.MasterPort}");
 
-        // Headless instance: it never renders, so load scene textures at the
-        // smallest mip (1/256 memory) to cut the world's RAM footprint.
-        // Clients are unaffected (each renders with its own full-res textures).
-        QualitySettings.globalTextureMipmapLimit = 4;
-        Logger.LogInfo($"globalTextureMipmapLimit set to 4 (headless memory saving)");
+        // Headless instance only: it never renders, so load scene textures at
+        // the smallest mip (1/256 memory). NEVER apply to clients — it would
+        // downscale their own rendering (this bug shipped in 0.2.0).
+        if (Cfg.Role == "instance")
+        {
+            QualitySettings.globalTextureMipmapLimit = 4;
+            Logger.LogInfo("globalTextureMipmapLimit set to 4 (instance only)");
+        }
 
         try
         {

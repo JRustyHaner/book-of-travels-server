@@ -23,6 +23,12 @@ if (-not (Test-Path "$GameDir\BookOfTravels.exe")) {
     exit 1
 }
 
+# Remove any previous mod install (old BepInEx 5 / mismatched versions) so the
+# bundle extracts cleanly. These are additive mod files; the game itself is untouched.
+foreach ($old in @("$GameDir\BepInEx", "$GameDir\winhttp.dll", "$GameDir\doorstop_config.ini", "$GameDir\.doorstop_version")) {
+    if (Test-Path $old) { Remove-Item -Recurse -Force $old }
+}
+
 $tmp = Join-Path $env:TEMP "braid-client"
 New-Item -ItemType Directory -Force -Path $tmp | Out-Null
 
