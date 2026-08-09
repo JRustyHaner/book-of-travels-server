@@ -348,17 +348,14 @@ public static class Patches
         if (_loading.Contains(level)) return;
         var s = SceneManager.GetSceneByName(level);
         if (s.IsValid() && s.isLoaded) return;
+        // Guard stays set until the next StreamTick: after a synchronous additive
+        // load, GetSceneByName().isLoaded can lag until the next frame, so a second
+        // call in the same frame would otherwise load the scene twice (duplicate
+        // level -> doubled unloads later).
         _loading.Add(level);
-        try
-        {
-            SceneManager.LoadScene(level, LoadSceneMode.Additive);
-            StreamSpawn(level);
-            BotMasterPlugin.Log.LogInfo($"stream: preloaded {level} ({why})");
-        }
-        finally
-        {
-            _loading.Remove(level);
-        }
+        SceneManager.LoadScene(level, LoadSceneMode.Additive);
+        StreamSpawn(level);
+        BotMasterPlugin.Log.LogInfo($"stream: preloaded {level} ({why})");
     }
 
     // World entry: the character (and its CurrentLevel) is fully loaded here.
@@ -442,6 +439,7 @@ public static class Patches
         if (BotMasterPlugin.Cfg.Role != "instance" || !BotMasterPlugin.Cfg.StreamingEnabled) return;
         if (Time.time < _nextStreamTick) return;
         _nextStreamTick = Time.time + 4f;
+        _loading.Clear(); // previous loads are settled by now; allow re-evaluation
         try
         {
             var occupied = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
