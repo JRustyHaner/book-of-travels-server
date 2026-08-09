@@ -116,8 +116,20 @@ public class Store
         }
     }
 
-    public string CreateInvite(string? email, bool reusable)
+    /// <summary>Create an invite code. Returns (ok, code) or (false, error).
+    /// Caps the number of outstanding (unused) codes via BRAID_MAX_INVITES (default 12).</summary>
+    public (bool ok, string code, string error) CreateInvite(string? email, bool reusable)
     {
+        var max = int.Parse(Environment.GetEnvironmentVariable("BRAID_MAX_INVITES") ?? "12");
+        if (max > 0)
+        {
+            using var cnt = Open();
+            using var c = cnt.CreateCommand();
+            c.CommandText = "SELECT COUNT(*) FROM invites WHERE used_by=''";
+            var outstanding = (long)c.ExecuteScalar()!;
+            if (outstanding >= max)
+                return (false, "", $"Invite pool is full ({outstanding}/{max} available). Have friends use their codes first.");
+        }
         var code = GenerateInviteCode();
         using var conn = Open();
         using (var cmd = conn.CreateCommand())
@@ -129,7 +141,7 @@ public class Store
             cmd.Parameters.AddWithValue("@t", DateTime.UtcNow.ToString("o"));
             cmd.ExecuteNonQuery();
         }
-        return code;
+        return (true, code, "");
     }
 
     /// <summary>Validate + consume an invite code for the given email. Returns (ok, error).</summary>

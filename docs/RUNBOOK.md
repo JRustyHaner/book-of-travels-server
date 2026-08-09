@@ -143,6 +143,7 @@ random-server assignment, region/news, admin view, account persistence.
 - The game's `RegisterAccount` gRPC is invite-gated too (the invite code goes in the
   email-token field).
 - Rate limiting: 60 requests / 10 min per IP on auth endpoints.
+- Invite pool: at most `BRAID_MAX_INVITES` (default 12) unused codes exist at once; using a code frees a slot. Any authenticated user can mint via `POST /invite`.
 - The braid site has a registration form; on a host with an existing Caddy, proxy
   `/api/*` → the master REST (see `deploy/braid-caddy-block.txt`).
 - **Note for the Caddy host**: the running config is autosaved in the container's

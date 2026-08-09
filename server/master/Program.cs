@@ -117,7 +117,8 @@ app.MapPost("/invite", async (HttpContext ctx) =>
         if (root.TryGetProperty("email", out var e)) email = e.GetString();
         if (root.TryGetProperty("reusable", out var r) && r.ValueKind == System.Text.Json.JsonValueKind.True) reusable = true;
     }
-    var code = store.CreateInvite(email, reusable);
+    var (ok, code, err) = store.CreateInvite(email, reusable);
+    if (!ok) return Results.Json(new { error = err }, statusCode: 400);
     _ = LogInfo(ctx, $"account {uid} created invite {code}");
     return Results.Ok(new { code });
 }).RequireRateLimiting("auth");
@@ -136,7 +137,8 @@ app.MapPost("/admin/invite", async (HttpContext ctx) =>
         if (root.TryGetProperty("email", out var e)) email = e.GetString();
         if (root.TryGetProperty("reusable", out var r) && r.ValueKind == System.Text.Json.JsonValueKind.True) reusable = true;
     }
-    var code = store.CreateInvite(email, reusable);
+    var (ok, code, err) = store.CreateInvite(email, reusable);
+    if (!ok) return Results.Json(new { error = err }, statusCode: 400);
     _ = LogInfo(ctx, $"created invite {code} (email={(email ?? "any")}, reusable={reusable})");
     return Results.Ok(new { code });
 }).RequireRateLimiting("auth");
