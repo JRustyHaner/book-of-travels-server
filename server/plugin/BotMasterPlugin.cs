@@ -339,17 +339,43 @@ public static class Patches
     // Ensure the destination is loaded BEFORE the player relocates into it
     // (UserCode_CmdRequestChangeLevel is the server-side handler of the level
     // change command; this prefix runs before RpcFadeAndRelocateData).
+    // Load a streamable level if it isn't loaded, guarding against double-load
+    // (tick + arrival/entry hooks can race on the same frame).
+    private static void EnsureLevelLoaded(string level, string why)
+    {
+        if (!BotMasterPlugin.Cfg.StreamingEnabled) return;
+        if (!IsStreamableScene(level)) return;
+        if (_loading.Contains(level)) return;
+        var s = SceneManager.GetSceneByName(level);
+        if (s.IsValid() && s.isLoaded) return;
+        _loading.Add(level);
+        try
+        {
+            SceneManager.LoadScene(level, LoadSceneMode.Additive);
+            StreamSpawn(level);
+            BotMasterPlugin.Log.LogInfo($"stream: preloaded {level} ({why})");
+        }
+        finally
+        {
+            _loading.Remove(level);
+        }
+    }
+
+    // World entry: the character (and its CurrentLevel) is fully loaded here.
+    [HarmonyPatch(typeof(PlayerBase), "FinishedLoading")]
+    [HarmonyPostfix]
+    private static void OnFinishedLoading(PlayerBase __instance)
+    {
+        if (BotMasterPlugin.Cfg.Role != "instance") return;
+        EnsureLevelLoaded(__instance.CurrentLevel, "world entry");
+    }
+
     [HarmonyPatch(typeof(PlayerBase), "UserCode_CmdRequestChangeLevel__String__String__Int32__Boolean__Vector3__Boolean__RandomLevelDirection")]
     [HarmonyPrefix]
     private static void OnRequestChangeLevel(string nextLevel)
     {
-        if (BotMasterPlugin.Cfg.Role != "instance" || !BotMasterPlugin.Cfg.StreamingEnabled) return;
-        if (!IsStreamableScene(nextLevel)) return;
-        var s = SceneManager.GetSceneByName(nextLevel);
-        if (s.IsValid() && s.isLoaded) return;
-        SceneManager.LoadScene(nextLevel, LoadSceneMode.Additive);
-        StreamSpawn(nextLevel);
-        BotMasterPlugin.Log.LogInfo($"stream: preloaded {nextLevel} for arrival");
+        if (BotMasterPlugin.Cfg.Role != "instance") return;
+        EnsureLevelLoaded(nextLevel, "arrival");
     }
 
     // Initial world entry (and any CurrentLevel change): the client sets its
@@ -360,13 +386,8 @@ public static class Patches
     [HarmonyPrefix]
     private static void OnCmdSetCurrentLevel(string level)
     {
-        if (BotMasterPlugin.Cfg.Role != "instance" || !BotMasterPlugin.Cfg.StreamingEnabled) return;
-        if (!IsStreamableScene(level)) return;
-        var s = SceneManager.GetSceneByName(level);
-        if (s.IsValid() && s.isLoaded) return;
-        SceneManager.LoadScene(level, LoadSceneMode.Additive);
-        StreamSpawn(level);
-        BotMasterPlugin.Log.LogInfo($"stream: preloaded {level} for world entry");
+        if (BotMasterPlugin.Cfg.Role != "instance") return;
+        EnsureLevelLoaded(level, "level change");
     }
 
     private static int MemAvailableMB()
@@ -413,6 +434,8 @@ public static class Patches
     private static readonly System.Collections.Generic.HashSet<string> _unloading =
         new(System.StringComparer.OrdinalIgnoreCase);
     private const int MaxUnloadsPerTick = 4; // gradual release, avoid a memory storm under load
+    private static readonly System.Collections.Generic.HashSet<string> _loading =
+        new(System.StringComparer.OrdinalIgnoreCase);
 
     internal static void StreamTick()
     {
@@ -514,12 +537,7 @@ public static class Patches
                 // load occupied levels that aren't loaded (synchronous, like the game's own loads)
                 foreach (var name in occupied)
                 {
-                    if (!IsStreamableScene(name)) continue;
-                    var sc = SceneManager.GetSceneByName(name);
-                    if (sc.IsValid() && sc.isLoaded) continue;
-                    SceneManager.LoadScene(name, LoadSceneMode.Additive);
-                    StreamSpawn(name);
-                    BotMasterPlugin.Log.LogInfo($"stream: loaded {name} (occupied)");
+                    EnsureLevelLoaded(name, "occupied");
                 }
             }
 
@@ -568,6 +586,30 @@ public static class Patches
         {
             BotMasterPlugin.Log.LogWarning($"stream tick: {e.Message}");
         }
+    }
+
+    // ---- Database.EvaluateConnection: the shipped handler quits the whole
+    // process on any connection state change to Closed/Broken (the remote DB
+    // connection drops occasionally on a busy host). Reconnect instead of dying.
+    [HarmonyPatch(typeof(Database), "EvaluateConnection")]
+    [HarmonyPrefix]
+    private static bool OnEvaluateConnection(object sender, System.Data.StateChangeEventArgs e)
+    {
+        if (e.CurrentState == System.Data.ConnectionState.Broken || e.CurrentState == System.Data.ConnectionState.Closed)
+        {
+            BotMasterPlugin.Log.LogWarning($"DB connection {e.CurrentState} — reconnecting instead of quitting");
+            try
+            {
+                Database.Init(Environment.GetEnvironmentVariable("MDY_DB_URL"));
+                BotMasterPlugin.Log.LogInfo("DB reconnected");
+            }
+            catch (Exception ex)
+            {
+                BotMasterPlugin.Log.LogWarning($"DB reconnect failed: {ex.Message}");
+            }
+            return false; // skip the original (which calls Application.Quit)
+        }
+        return true;
     }
 
     // ---- Database.GetConnection: repair the stubbed remote-DB path ----
