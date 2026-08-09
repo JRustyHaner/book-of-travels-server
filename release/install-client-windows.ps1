@@ -1,4 +1,4 @@
-# install-client-windows.ps1 — installs the Braid client mod into a Windows
+# install-client-windows.ps1 --- installs the Braid client mod into a Windows
 # Book of Travels install (Steam). Downloads the latest client bundle from the
 # Braid GitHub release; adds BepInEx + the plugin, modifies nothing else.
 #
@@ -42,4 +42,4 @@ masterPort = $MasterPort
 "@ | Set-Content -Path $cfg -Encoding UTF8
 
 Write-Host "==> done. Launch Book of Travels normally via Steam."
-Write-Host "    (Log in with any email/password — the Braid server provisions the account.)"
+Write-Host "    (Log in with any email/password --- the Braid server provisions the account.)"

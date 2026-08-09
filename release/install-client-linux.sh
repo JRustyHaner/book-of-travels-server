@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# install-client-linux.sh — installs the Braid client mod into a Linux
+# install-client-linux.sh --- installs the Braid client mod into a Linux
 # Book of Travels install (Steam). Downloads the latest client bundle from the
-# Braid GitHub release and patches nothing — only adds BepInEx + the plugin.
+# Braid GitHub release and patches nothing --- only adds BepInEx + the plugin.
 #
 # Usage: ./install-client-linux.sh [masterHost [masterPort]]
 # Env: BRAID_GAME_DIR overrides the game folder.
@@ -37,4 +37,4 @@ EOF
 
 echo "==> done. Launch the game with:"
 echo "    cd \"$GAME\" && ./run_bepinex.sh ./BookOfTravels.x86_64"
-echo "    (Log in with any email/password — the Braid server provisions the account.)"
+echo "    (Log in with any email/password --- the Braid server provisions the account.)"
